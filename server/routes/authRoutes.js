@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { query } from '../config/db.js';
+import { config } from '../config/env.js';
 import { comparePassword, hashPassword } from '../utils/passwordUtils.js';
 import { generateToken } from '../utils/tokenUtils.js';
 import { authenticate } from '../middleware/authMiddleware.js';
+import { loginRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-// Demo accounts dictionary fallback for offline / mock testing before DB configuration
+// Demo accounts dictionary fallback ONLY for offline/development test harness
 const DEMO_USERS = {
   'admin@college.edu': {
     id: 'u0000000-0000-0000-0000-000000000001',
@@ -33,8 +35,8 @@ const DEMO_USERS = {
   },
 };
 
-// POST /api/v1/auth/login
-router.post('/login', async (req, res, next) => {
+// POST /api/v1/auth/login (Protected by IP Rate Limiter against credential brute-force)
+router.post('/login', loginRateLimiter({ maxAttempts: 10, windowMs: 15 * 60 * 1000 }), async (req, res, next) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -66,6 +68,9 @@ router.post('/login', async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'Invalid email or password.' });
       }
 
+      // Reset rate limit tracking upon successful authentication
+      req.clearLoginRateLimit?.();
+
       const token = generateToken({
         userId: userRecord.id,
         email: userRecord.email,
@@ -79,21 +84,24 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    // Fallback: If DB is not yet populated, verify against Demo credentials
-    const demoUser = DEMO_USERS[email.toLowerCase()];
-    if (demoUser && (password === 'Password@123' || password === 'Admin@123')) {
-      const token = generateToken({
-        userId: demoUser.id,
-        email: demoUser.email,
-        role: demoUser.role,
-        departmentId: demoUser.departmentId,
-      });
+    // Fallback: strictly disabled in production
+    if (config.nodeEnv !== 'production') {
+      const demoUser = DEMO_USERS[email.toLowerCase()];
+      if (demoUser && (password === 'Password@123' || password === 'Admin@123')) {
+        req.clearLoginRateLimit?.();
+        const token = generateToken({
+          userId: demoUser.id,
+          email: demoUser.email,
+          role: demoUser.role,
+          departmentId: demoUser.departmentId,
+        });
 
-      return res.json({
-        success: true,
-        token,
-        user: demoUser,
-      });
+        return res.json({
+          success: true,
+          token,
+          user: demoUser,
+        });
+      }
     }
 
     return res.status(401).json({ success: false, message: 'Invalid credentials.' });

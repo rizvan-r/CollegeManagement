@@ -91,4 +91,66 @@ router.post('/', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (re
   }
 });
 
+// GET /api/v1/notices/:id (Read single)
+router.get('/:id', authenticate, async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const sql = `
+      SELECT n.*, u.email AS author_name, d.name AS department_name
+      FROM notices n
+      JOIN users u ON u.id = n.author_id
+      LEFT JOIN departments d ON d.id = n.target_department_id
+      WHERE n.id = $1
+    `;
+    const result = await query(sql, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Notice not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/v1/notices/:id (Update notice - Admin & Dept Staff)
+router.put('/:id', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+  const { id } = req.params;
+  const { title, content, priority, audience, targetDepartmentId } = req.body;
+
+  try {
+    const sql = `
+      UPDATE notices
+      SET title = COALESCE($1, title),
+          content = COALESCE($2, content),
+          priority = COALESCE($3, priority),
+          audience = COALESCE($4, audience),
+          target_department_id = COALESCE($5, target_department_id),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+      RETURNING *
+    `;
+    const result = await query(sql, [title, content, priority, audience, targetDepartmentId, id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Notice not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0], message: 'Notice updated successfully.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/v1/notices/:id (Delete notice - Admin & Dept Staff)
+router.delete('/:id', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const result = await query('DELETE FROM notices WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Notice not found.' });
+    }
+    return res.json({ success: true, message: 'Notice deleted successfully.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

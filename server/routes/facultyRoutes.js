@@ -178,4 +178,84 @@ router.post('/:id/reset-password', authenticate, authorize('ADMIN'), async (req,
   }
 });
 
+// GET /api/v1/faculty/:id (Read single)
+router.get('/:id', authenticate, async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const sql = `
+      SELECT 
+        f.*, u.email, d.name AS department_name, d.code AS department_code
+      FROM faculty f
+      JOIN users u ON u.id = f.user_id
+      JOIN departments d ON d.id = f.department_id
+      WHERE f.id = $1
+    `;
+    const result = await query(sql, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Faculty member not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/v1/faculty/:id (Update - Admin only)
+router.put('/:id', authenticate, authorize('ADMIN'), async (req, res, next) => {
+  const { id } = req.params;
+  const { firstName, lastName, designation, qualification, phone, status, departmentId } = req.body;
+
+  try {
+    const sql = `
+      UPDATE faculty
+      SET first_name = COALESCE($1, first_name),
+          last_name = COALESCE($2, last_name),
+          designation = COALESCE($3, designation),
+          qualification = COALESCE($4, qualification),
+          phone = COALESCE($5, phone),
+          status = COALESCE($6, status),
+          department_id = COALESCE($7, department_id),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
+      RETURNING *
+    `;
+    const result = await query(sql, [firstName, lastName, designation, qualification, phone, status, departmentId, id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Faculty member not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0], message: 'Faculty record updated successfully.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/v1/faculty/:id (Delete faculty - Admin only)
+router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    const facRes = await query('SELECT user_id FROM faculty WHERE id = $1', [id]);
+    if (facRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Faculty member not found.' });
+    }
+    const userId = facRes.rows[0].user_id;
+
+    // Check if faculty has active course assignments
+    const caCheck = await query('SELECT COUNT(*)::int AS count FROM course_assignments WHERE faculty_id = $1', [id]);
+    if (caCheck.rows[0]?.count > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot delete faculty assigned to active teaching courses. Reassign courses first.',
+      });
+    }
+
+    await query('DELETE FROM faculty WHERE id = $1', [id]);
+    await query('DELETE FROM users WHERE id = $1', [userId]);
+
+    return res.json({ success: true, message: 'Faculty member and associated user account removed successfully.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

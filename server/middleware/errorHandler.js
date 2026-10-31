@@ -8,7 +8,7 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(409).json({
       success: false,
       message: 'A record with this identifier or unique field already exists.',
-      detail: err.detail || undefined,
+      detail: config.nodeEnv === 'development' ? err.detail : undefined,
     });
   }
 
@@ -17,7 +17,15 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(400).json({
       success: false,
       message: 'Referenced entity does not exist or cannot be modified due to dependent records.',
-      detail: err.detail || undefined,
+      detail: config.nodeEnv === 'development' ? err.detail : undefined,
+    });
+  }
+
+  // PostgreSQL Error Code 22P02: Invalid input syntax (e.g. malformed UUID)
+  if (err.code === '22P02') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid parameter syntax or data format provided.',
     });
   }
 

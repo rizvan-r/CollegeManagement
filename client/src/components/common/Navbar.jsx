@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-export const Navbar = () => {
+export const Navbar = ({ onToggleMobileMenu, onOpenCommandPalette, onOpenAI }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -40,9 +40,17 @@ export const Navbar = () => {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-[#e2e8f0] px-6 flex items-center justify-between sticky top-0 z-20">
+    <header className="h-16 bg-white border-b border-[#e2e8f0] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20">
       {/* Left University & Term Context */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          aria-label="Open navigation menu"
+          className="p-1.5 -ml-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30] lg:hidden"
+        >
+          <span className="material-symbols-outlined text-[24px]">menu</span>
+        </button>
         <div className="flex flex-col">
           <span className="text-sm font-bold text-[#0b1c30] leading-none">Veritas University</span>
           <span className="text-[11px] text-[#515f74] leading-tight mt-1">
@@ -64,24 +72,58 @@ export const Navbar = () => {
       </div>
 
       {/* Right Search, Actions & Profile */}
-      <div className="flex items-center gap-4">
-        {/* Quick Search */}
-        <div className="relative hidden lg:block w-64">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#76777d] text-[16px]">
-            search
+      <div className="flex items-center gap-2.5 sm:gap-3.5">
+        {/* Interactive Spotlight Command Palette Trigger */}
+        <button
+          type="button"
+          onClick={onOpenCommandPalette}
+          className="relative hidden sm:flex items-center justify-between w-56 md:w-64 pl-3 pr-2 py-1.5 bg-[#f8f9ff] hover:bg-[#f1f5f9] border border-[#e2e8f0] rounded-xl text-xs text-[#64748b] transition-all cursor-pointer shadow-2xs group"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <span className="material-symbols-outlined text-[#94a3b8] group-hover:text-indigo-600 text-[18px] transition-colors">
+              search
+            </span>
+            <span className="text-xs text-[#94a3b8] group-hover:text-[#475569]">Search & commands...</span>
+          </div>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white border border-[#cbd5e1] text-[10px] font-mono font-medium text-[#475569] shadow-2xs">
+            Ctrl K
+          </kbd>
+        </button>
+
+        {/* Campus AI Copilot Trigger Button */}
+        <button
+          type="button"
+          onClick={onOpenAI}
+          aria-label="Open Campus AI Copilot"
+          className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-linear-to-r from-[#0b1c30] via-[#122844] to-[#1e3a5f] hover:from-[#172e4c] hover:to-[#2b5282] text-white text-xs font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer border border-sky-400/20 group"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-400"></span>
           </span>
-          <input
-            type="text"
-            placeholder="Search UID, course, or faculty..."
-            className="w-full pl-8 pr-3 py-1.5 bg-[#f8f9ff] border border-[#e2e8f0] rounded text-xs text-[#0b1c30] placeholder-[#94a3b8] focus:outline-none focus:border-[#0f172a] focus:bg-white"
-          />
-        </div>
+          <span className="text-sky-300 group-hover:text-white transition-colors">✦ Campus AI</span>
+          <span className="hidden xl:inline text-[10px] text-sky-200/80 font-mono font-normal">
+            Ctrl+J
+          </span>
+        </button>
+
+        {/* Mobile Search Icon */}
+        <button
+          type="button"
+          onClick={onOpenCommandPalette}
+          aria-label="Search"
+          className="sm:hidden p-2 rounded-lg text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30] transition-colors"
+        >
+          <span className="material-symbols-outlined text-[20px]">search</span>
+        </button>
 
         {/* Notification Bell */}
         <button
           type="button"
+          onClick={() => navigate('/notices')}
           aria-label="Notifications"
-          className="relative p-2 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30] transition-colors"
+          className="relative p-2 rounded-lg text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30] transition-colors"
+          title="View recent notices"
         >
           <span className="material-symbols-outlined text-[20px]">notifications</span>
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a]"></span>

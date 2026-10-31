@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
 
 export const CourseListPage = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const canManage = ['ADMIN', 'DEPARTMENT_STAFF'].includes(user?.role);
 
@@ -86,6 +88,20 @@ export const CourseListPage = () => {
     }
   };
 
+  const handleDeleteCourse = async (courseId, courseCode) => {
+    if (!window.confirm(`Are you sure you want to remove course "${courseCode}"?`)) {
+      return;
+    }
+    try {
+      const res = await axiosClient.delete(`/courses/${courseId}`);
+      if (res.success) {
+        fetchCourses();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to delete course');
+    }
+  };
+
   const filteredCourses = courses.filter((c) => {
     const matchesSearch =
       c.code?.toLowerCase().includes(search.toLowerCase()) ||
@@ -128,16 +144,26 @@ export const CourseListPage = () => {
           </p>
         </div>
 
-        {canManage && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowModal(true)}
-            className="btn-stitch-primary"
+            onClick={() => navigate('/enrollments')}
+            className="px-3 py-1.5 rounded border border-[#cbd5e1] bg-white text-xs font-bold text-[#0b1c30] hover:bg-[#eff4ff] transition-all flex items-center gap-1.5 shadow-xs"
           >
-            <span className="material-symbols-outlined text-[16px]">add_circle</span>
-            <span>Create New Course</span>
+            <span className="material-symbols-outlined text-[17px] text-[#0f172a]">how_to_reg</span>
+            <span>Course Registration / Enroll Students</span>
           </button>
-        )}
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="btn-stitch-primary"
+            >
+              <span className="material-symbols-outlined text-[16px]">add_circle</span>
+              <span>Create New Course</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 3. Filter Toolbar */}
@@ -219,13 +245,25 @@ export const CourseListPage = () => {
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      <button
-                        type="button"
-                        title="Audit Course Syllabi"
-                        className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">visibility</span>
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          title="Audit Course Syllabi"
+                          className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                        </button>
+                        {canManage && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCourse(c.id, c.code)}
+                            title="Remove Course from Catalog"
+                            className="p-1 rounded text-[#515f74] hover:bg-[#fff1f2] hover:text-[#9f1239] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

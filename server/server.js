@@ -7,14 +7,37 @@ import { testDatabaseConnection } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import apiRouter from './routes/index.js';
 
+import { generalRateLimiter } from './middleware/rateLimiter.js';
+
 const app = express();
 
 // Security & Utility Middleware
 app.use(helmet());
+
+// Hardened CORS Origin validation: strictly prevent wildcard origins when credentials are enabled
+const allowedOrigins = [
+  config.clientUrl,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
+
 app.use(cors({
-  origin: config.clientUrl || '*',
+  origin: (origin, callback) => {
+    // Allow server-to-server, curl, tests where origin is not set
+    if (!origin) return callback(null, true);
+    // Allow whitelist and any vercel preview deployment
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for untrusted origin: ${origin}`));
+  },
   credentials: true,
 }));
+
+// DoS / Scraping Mitigation: General API rate limiting
+app.use('/api', generalRateLimiter({ maxRequests: 500, windowMs: 60 * 1000 }));
+
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

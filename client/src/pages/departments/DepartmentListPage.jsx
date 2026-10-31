@@ -57,6 +57,20 @@ export const DepartmentListPage = () => {
     }
   };
 
+  const handleDeleteDepartment = async (deptId, deptName) => {
+    if (!window.confirm(`Are you sure you want to delete department "${deptName}"?`)) {
+      return;
+    }
+    try {
+      const res = await axiosClient.delete(`/departments/${deptId}`);
+      if (res.success) {
+        fetchDepartments();
+      }
+    } catch (err) {
+      alert(err.message || 'Cannot delete department with active students or faculty');
+    }
+  };
+
   const filteredDepts = departments.filter((d) =>
     d.name?.toLowerCase().includes(search.toLowerCase()) ||
     d.code?.toLowerCase().includes(search.toLowerCase())
@@ -179,13 +193,25 @@ export const DepartmentListPage = () => {
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      <button
-                        type="button"
-                        title="Audit Department Record"
-                        className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">visibility</span>
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          title="Audit Department Record"
+                          className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDepartment(d.id, d.name)}
+                            title="Remove Department Division"
+                            className="p-1 rounded text-[#515f74] hover:bg-[#fff1f2] hover:text-[#9f1239] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

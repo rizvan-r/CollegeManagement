@@ -111,6 +111,20 @@ export const FacultyListPage = () => {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleDeleteFaculty = async (facultyId, facultyName) => {
+    if (!window.confirm(`Are you sure you want to remove faculty member "${facultyName}"? This will delete their faculty profile and user login account.`)) {
+      return;
+    }
+    try {
+      const res = await axiosClient.delete(`/faculty/${facultyId}`);
+      if (res.success) {
+        fetchFaculty();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to remove faculty member');
+    }
+  };
+
   const filteredFaculty = faculty.filter((f) => {
     const fullName = `${f.first_name || ''} ${f.last_name || ''}`.toLowerCase();
     const emp = (f.employee_id || '').toLowerCase();
@@ -390,13 +404,25 @@ export const FacultyListPage = () => {
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      <button
-                        type="button"
-                        title="Audit Workload Allocation"
-                        className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">repartition</span>
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          title="Audit Workload Allocation"
+                          className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">repartition</span>
+                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFaculty(member.id, `${member.first_name} ${member.last_name}`)}
+                            title="Purge / Remove Faculty Profile"
+                            className="p-1 rounded text-[#515f74] hover:bg-[#fff1f2] hover:text-[#9f1239] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

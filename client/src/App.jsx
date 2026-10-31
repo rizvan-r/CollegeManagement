@@ -9,6 +9,7 @@ import DepartmentListPage from './pages/departments/DepartmentListPage';
 import StudentListPage from './pages/students/StudentListPage';
 import FacultyListPage from './pages/faculty/FacultyListPage';
 import CourseListPage from './pages/courses/CourseListPage';
+import CourseEnrollmentPage from './pages/courses/CourseEnrollmentPage';
 import AttendancePage from './pages/attendance/AttendancePage';
 import NoticesPage from './pages/notices/NoticesPage';
 import UserProfilePage from './pages/profile/UserProfilePage';
@@ -34,6 +35,7 @@ function App() {
             <Route path="/students" element={<StudentListPage />} />
             <Route path="/faculty" element={<FacultyListPage />} />
             <Route path="/courses" element={<CourseListPage />} />
+            <Route path="/enrollments" element={<CourseEnrollmentPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/notices" element={<NoticesPage />} />
             <Route path="/profile" element={<UserProfilePage />} />

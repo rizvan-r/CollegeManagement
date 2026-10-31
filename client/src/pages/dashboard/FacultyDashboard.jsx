@@ -78,6 +78,10 @@ export const FacultyDashboard = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Link to="/students" className="btn-stitch-secondary">
+            <span className="material-symbols-outlined text-[16px]">person_add</span>
+            <span>Register Student</span>
+          </Link>
           <Link to="/courses" className="btn-stitch-secondary">
             <span className="material-symbols-outlined text-[16px]">menu_book</span>
             <span>Course Catalog</span>

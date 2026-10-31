@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-export const Sidebar = () => {
+export const Sidebar = ({ onClose }) => {
   const { user } = useAuth();
   const role = user?.role;
 
@@ -46,10 +46,16 @@ export const Sidebar = () => {
       title: 'Curriculum & Records',
       items: [
         {
+          label: 'Course Registration',
+          path: '/enrollments',
+          icon: 'how_to_reg',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+        },
+        {
           label: 'Course Catalog',
           path: '/courses',
           icon: 'menu_book',
-          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY'],
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
         },
         {
           label: 'Notices & Circulars',
@@ -86,16 +92,27 @@ export const Sidebar = () => {
     <aside className="w-64 bg-white border-r border-[#e2e8f0] flex flex-col justify-between shrink-0 min-h-screen z-30 select-none">
       <div className="flex flex-col">
         {/* Brand Header */}
-        <div className="h-16 px-5 flex items-center gap-3 border-b border-[#e2e8f0] bg-white">
-          <div className="w-8 h-8 rounded bg-[#0f172a] text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm">
-            <span className="material-symbols-outlined text-[19px]">account_balance</span>
+        <div className="h-16 px-5 flex items-center justify-between border-b border-[#e2e8f0] bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-[#0f172a] text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm">
+              <span className="material-symbols-outlined text-[19px]">account_balance</span>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold text-[#0b1c30] truncate tracking-tight">Veritas CMS</span>
+              <span className="text-[10px] font-semibold text-[#515f74] truncate uppercase tracking-wider">
+                {getRoleBadge(role)}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold text-[#0b1c30] truncate tracking-tight">Veritas CMS</span>
-            <span className="text-[10px] font-semibold text-[#515f74] truncate uppercase tracking-wider">
-              {getRoleBadge(role)}
-            </span>
-          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded text-[#515f74] hover:bg-[#eff4ff] hover:text-[#0b1c30] lg:hidden"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          )}
         </div>
 
         {/* Navigation Sections */}
@@ -114,6 +131,7 @@ export const Sidebar = () => {
                     <NavLink
                       key={item.path}
                       to={item.path}
+                      onClick={onClose}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3 py-2 rounded text-xs transition-colors ${
                           isActive

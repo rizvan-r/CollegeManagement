@@ -41,8 +41,8 @@ router.get('/', authenticate, async (req, res, next) => {
   }
 });
 
-// POST /api/v1/students (Admin & Dept Staff)
-router.post('/', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+// POST /api/v1/students (Admin, Faculty & Dept Staff)
+router.post('/', authenticate, authorize('ADMIN', 'FACULTY', 'DEPARTMENT_STAFF'), async (req, res, next) => {
   const { firstName, lastName, email, departmentId, currentSemester, phone, dob, password } = req.body;
   if (!firstName || !lastName || !email || !departmentId) {
     return res.status(400).json({ success: false, message: 'Missing required student enrollment fields.' });
@@ -135,8 +135,8 @@ router.post('/', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (re
   }
 });
 
-// POST /api/v1/students/:id/reset-password (Admin & Dept Staff)
-router.post('/:id/reset-password', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+// POST /api/v1/students/:id/reset-password (Admin, Faculty & Dept Staff)
+router.post('/:id/reset-password', authenticate, authorize('ADMIN', 'FACULTY', 'DEPARTMENT_STAFF'), async (req, res, next) => {
   const { id } = req.params;
   const { newPassword } = req.body;
 
@@ -181,6 +181,81 @@ router.post('/:id/reset-password', authenticate, authorize('ADMIN', 'DEPARTMENT_
         password: plainPassword,
       },
     });
+  }
+});
+
+// GET /api/v1/students/:id (Read single)
+router.get('/:id', authenticate, async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const sql = `
+      SELECT 
+        s.*, u.email, d.name AS department_name, d.code AS department_code,
+        ay.name AS academic_year_name
+      FROM students s
+      JOIN users u ON u.id = s.user_id
+      JOIN departments d ON d.id = s.department_id
+      LEFT JOIN academic_years ay ON ay.id = s.academic_year_id
+      WHERE s.id = $1
+    `;
+    const result = await query(sql, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/v1/students/:id (Update student - Admin, Faculty & Dept Staff)
+router.put('/:id', authenticate, authorize('ADMIN', 'FACULTY', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+  const { id } = req.params;
+  const { firstName, lastName, currentSemester, phone, status, departmentId } = req.body;
+
+  try {
+    const sql = `
+      UPDATE students
+      SET first_name = COALESCE($1, first_name),
+          last_name = COALESCE($2, last_name),
+          current_semester = COALESCE($3, current_semester),
+          phone = COALESCE($4, phone),
+          status = COALESCE($5, status),
+          department_id = COALESCE($6, department_id),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `;
+    const result = await query(sql, [firstName, lastName, currentSemester, phone, status, departmentId, id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0], message: 'Student updated successfully.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/v1/students/:id (Delete / Archive student - Admin only)
+router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    const stuRes = await query('SELECT user_id FROM students WHERE id = $1', [id]);
+    if (stuRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+    const userId = stuRes.rows[0].user_id;
+
+    // Delete attendance records and enrollments first to respect FK constraints
+    await query('DELETE FROM attendance_records WHERE student_id = $1', [id]);
+    await query('DELETE FROM enrollments WHERE student_id = $1', [id]);
+    await query('DELETE FROM students WHERE id = $1', [id]);
+    await query('DELETE FROM users WHERE id = $1', [userId]);
+
+    return res.json({ success: true, message: 'Student and associated user account removed successfully.' });
+  } catch (error) {
+    next(error);
   }
 });
 

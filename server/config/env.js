@@ -16,3 +16,13 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
 };
+
+// Security validation: Prevent running in production with insecure defaults
+if (config.nodeEnv === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.includes('dev_secret')) {
+    throw new Error('[FATAL SECURITY ERROR]: Production deployment requires a secure, unpredictable JWT_SECRET environment variable.');
+  }
+  if (!config.databaseUrl) {
+    throw new Error('[FATAL CONFIG ERROR]: Production deployment requires DATABASE_URL.');
+  }
+}

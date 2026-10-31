@@ -75,6 +75,16 @@ export const NoticesPage = () => {
     }
   };
 
+  const handleDeleteNotice = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this institutional notice?')) return;
+    try {
+      await axiosClient.delete(`/notices/${id}`);
+      fetchNotices();
+    } catch (err) {
+      alert(err.message || 'Failed to delete notice');
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* 1. Academic Governance Context Strip */}
@@ -150,6 +160,16 @@ export const NoticesPage = () => {
                   </div>
                   <h2 className="text-base font-bold text-[#0b1c30] tracking-tight">{notice.title}</h2>
                 </div>
+                {canPublish && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteNotice(notice.id)}
+                    title="Delete Notice Circular"
+                    className="p-1 rounded text-[#515f74] hover:bg-[#fff1f2] hover:text-[#9f1239] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                )}
               </div>
 
               <p className="text-xs text-[#45464d] leading-relaxed whitespace-pre-line">
