@@ -1,116 +1,148 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import {
-  LayoutDashboard,
-  Building2,
-  Users,
-  GraduationCap,
-  BookOpen,
-  CalendarCheck,
-  Bell,
-  UserCheck,
-  ShieldCheck,
-} from 'lucide-react';
 
 export const Sidebar = () => {
   const { user } = useAuth();
   const role = user?.role;
 
-  const navItems = [
+  const navSections = [
     {
-      label: 'Dashboard',
-      path: '/dashboard',
-      icon: LayoutDashboard,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+      title: 'Governance & Ops',
+      items: [
+        {
+          label: 'Overview / Dashboard',
+          path: '/dashboard',
+          icon: 'grid_view',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+        },
+        {
+          label: 'Student Directory',
+          path: '/students',
+          icon: 'school',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY'],
+        },
+        {
+          label: 'Faculty Workload',
+          path: '/faculty',
+          icon: 'co_present',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF'],
+        },
+        {
+          label: 'Lecture Roll Call',
+          path: '/attendance',
+          icon: 'fact_check',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+        },
+        {
+          label: 'Academic Departments',
+          path: '/departments',
+          icon: 'domain',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF'],
+        },
+      ],
     },
     {
-      label: 'Departments',
-      path: '/departments',
-      icon: Building2,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF'],
-    },
-    {
-      label: 'Faculty',
-      path: '/faculty',
-      icon: Users,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF'],
-    },
-    {
-      label: 'Students',
-      path: '/students',
-      icon: GraduationCap,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY'],
-    },
-    {
-      label: 'Courses',
-      path: '/courses',
-      icon: BookOpen,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY'],
-    },
-    {
-      label: 'Attendance',
-      path: '/attendance',
-      icon: CalendarCheck,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
-    },
-    {
-      label: 'Notices',
-      path: '/notices',
-      icon: Bell,
-      roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+      title: 'Curriculum & Records',
+      items: [
+        {
+          label: 'Course Catalog',
+          path: '/courses',
+          icon: 'menu_book',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY'],
+        },
+        {
+          label: 'Notices & Circulars',
+          path: '/notices',
+          icon: 'campaign',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+        },
+        {
+          label: 'Institutional Profile',
+          path: '/profile',
+          icon: 'badge',
+          roles: ['ADMIN', 'DEPARTMENT_STAFF', 'FACULTY', 'STUDENT'],
+        },
+      ],
     },
   ];
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(role));
+  const getRoleBadge = (userRole) => {
+    switch (userRole) {
+      case 'ADMIN':
+        return 'Registrar Rail';
+      case 'FACULTY':
+        return 'Faculty Portal';
+      case 'STUDENT':
+        return 'Student SIS';
+      case 'DEPARTMENT_STAFF':
+        return 'Dept Registry';
+      default:
+        return 'Campus Portal';
+    }
+  };
 
   return (
-    <aside className="w-64 bg-[#163A63] text-white flex flex-col shrink-0 min-h-screen">
-      {/* Brand Header */}
-      <div className="h-16 px-6 flex items-center space-x-3 border-b border-white/10">
-        <div className="w-9 h-9 rounded-lg bg-[#0F9D94] flex items-center justify-center font-black text-white text-lg tracking-wider shadow">
-          CMP
+    <aside className="w-64 bg-white border-r border-[#e2e8f0] flex flex-col justify-between shrink-0 min-h-screen z-30 select-none">
+      <div className="flex flex-col">
+        {/* Brand Header */}
+        <div className="h-16 px-5 flex items-center gap-3 border-b border-[#e2e8f0] bg-white">
+          <div className="w-8 h-8 rounded bg-[#0f172a] text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm">
+            <span className="material-symbols-outlined text-[19px]">account_balance</span>
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-bold text-[#0b1c30] truncate tracking-tight">Veritas CMS</span>
+            <span className="text-[10px] font-semibold text-[#515f74] truncate uppercase tracking-wider">
+              {getRoleBadge(role)}
+            </span>
+          </div>
         </div>
-        <div>
-          <h1 className="text-base font-bold text-white tracking-tight leading-tight">Campus Portal</h1>
-          <p className="text-[11px] text-teal-300 font-medium">College Management</p>
+
+        {/* Navigation Sections */}
+        <div className="p-3 space-y-4 overflow-y-auto">
+          {navSections.map((section, idx) => {
+            const visibleItems = section.items.filter((item) => item.roles.includes(role));
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={idx}>
+                <div className="px-3 py-1 mb-1 text-[10px] font-bold text-[#515f74] uppercase tracking-wider">
+                  {section.title}
+                </div>
+                <nav className="flex flex-col gap-1">
+                  {visibleItems.map((item) => (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded text-xs transition-colors ${
+                          isActive
+                            ? 'bg-[#e5eeff] text-[#0b1c30] font-semibold shadow-xs'
+                            : 'text-[#45464d] hover:bg-[#eff4ff] hover:text-[#0b1c30]'
+                        }`
+                      }
+                    >
+                      <span className="material-symbols-outlined text-[19px]">
+                        {item.icon}
+                      </span>
+                      <span className="truncate">{item.label}</span>
+                    </NavLink>
+                  ))}
+                </nav>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-        <div className="px-3 mb-2 text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
-          Menu Navigation
-        </div>
-        {filteredNavItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-[#0F9D94] text-white shadow-sm font-semibold'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                }`
-              }
-            >
-              <Icon className="w-5 h-5 shrink-0" />
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
-
-      {/* Institutional Footer Badge */}
-      <div className="p-4 border-t border-white/10">
-        <div className="bg-white/5 rounded-lg p-3 text-xs text-slate-300 space-y-1">
-          <div className="flex items-center space-x-1.5 text-teal-300 font-semibold">
-            <ShieldCheck className="w-4 h-4" />
-            <span>Secure System</span>
+      {/* System Build & Status Footer */}
+      <div className="p-3 border-t border-[#e2e8f0] bg-white">
+        <div className="px-3 py-2 rounded bg-[#eff4ff] border border-[#e2e8f0] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span className="font-mono text-[10px] text-[#45464d] font-semibold">NEON-DB LIVE</span>
           </div>
-          <p className="text-[11px] text-slate-400">PostgreSQL Cloud Sync</p>
+          <span className="text-[10px] uppercase font-mono text-[#76777d]">v4.18</span>
         </div>
       </div>
     </aside>

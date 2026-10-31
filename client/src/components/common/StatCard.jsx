@@ -1,41 +1,71 @@
 import React from 'react';
 
-export const StatCard = ({ title, value, icon: Icon, color = 'primary', subtext, trend }) => {
-  const colorStyles = {
-    primary: {
-      bg: 'bg-blue-50',
-      icon: 'text-[#163A63]',
-      accent: 'border-l-4 border-l-[#163A63]',
-    },
-    secondary: {
-      bg: 'bg-teal-50',
-      icon: 'text-[#0F9D94]',
-      accent: 'border-l-4 border-l-[#0F9D94]',
-    },
-    warning: {
-      bg: 'bg-amber-50',
-      icon: 'text-amber-600',
-      accent: 'border-l-4 border-l-amber-500',
-    },
-    success: {
-      bg: 'bg-emerald-50',
-      icon: 'text-emerald-600',
-      accent: 'border-l-4 border-l-emerald-500',
-    },
+export const StatCard = ({
+  title,
+  value,
+  icon,
+  subtext,
+  trend,
+  progress,
+  progressColor = 'bg-[#0f172a]',
+  badge,
+  badgeType = 'sky',
+}) => {
+  const getBadgeClass = (type) => {
+    switch (type) {
+      case 'emerald':
+        return 'badge-emerald';
+      case 'rose':
+        return 'badge-rose';
+      case 'amber':
+        return 'badge-amber';
+      case 'sky':
+      default:
+        return 'badge-sky';
+    }
   };
 
-  const style = colorStyles[color] || colorStyles.primary;
-
   return (
-    <div className={`card-institutional p-5 ${style.accent} flex items-start justify-between`}>
-      <div className="space-y-1">
-        <p className="text-xs font-semibold tracking-wide uppercase text-slate-500">{title}</p>
-        <p className="text-2xl font-bold text-[#172B4D]">{value ?? '—'}</p>
-        {subtext && <p className="text-xs text-slate-500 mt-1">{subtext}</p>}
+    <div className="card-stitch p-4 sm:p-5 flex flex-col justify-between bg-white relative overflow-hidden">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">
+          {title}
+        </span>
+        {icon && (
+          <span className="material-symbols-outlined text-[#515f74] text-[20px]">
+            {icon}
+          </span>
+        )}
       </div>
-      {Icon && (
-        <div className={`p-3 rounded-xl ${style.bg} ${style.icon} flex items-center justify-center`}>
-          <Icon className="w-6 h-6" />
+
+      <div className="flex items-baseline gap-2 mt-2.5">
+        <span className="text-2xl sm:text-3xl font-bold text-[#0b1c30] tracking-tight">
+          {value ?? '—'}
+        </span>
+        {badge && (
+          <span className={getBadgeClass(badgeType)}>
+            {badge}
+          </span>
+        )}
+      </div>
+
+      {(subtext || trend) && (
+        <div className="mt-2.5 pt-2 border-t border-[#e2e8f0]/60 flex items-center justify-between text-xs text-[#515f74]">
+          <span>{subtext}</span>
+          {trend && (
+            <span className="font-mono text-xs font-semibold text-[#0b1c30]">
+              {trend}
+            </span>
+          )}
+        </div>
+      )}
+
+      {progress !== undefined && (
+        <div className="w-full bg-[#eff4ff] h-1.5 rounded-full mt-2.5 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
+            style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+          />
         </div>
       )}
     </div>

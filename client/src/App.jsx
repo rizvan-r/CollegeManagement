@@ -21,6 +21,9 @@ function App() {
           {/* Public Auth Routes */}
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/login/student" element={<LoginPage forcedPortal="STUDENT" />} />
+            <Route path="/login/faculty" element={<LoginPage forcedPortal="FACULTY" />} />
+            <Route path="/login/admin" element={<LoginPage forcedPortal="ADMIN" />} />
           </Route>
 
           {/* Protected Application Routes */}

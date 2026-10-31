@@ -2,23 +2,34 @@
 
 @layer base {
   :root {
-    --primary: #163A63;
-    --primary-hover: #0F2742;
-    --secondary: #0F9D94;
-    --secondary-hover: #0B7C75;
-    --background: #F5F7FA;
-    --card: #FFFFFF;
-    --text-primary: #172B4D;
-    --text-secondary: #6B778C;
-    --border: #DFE1E6;
+    --background: #f8f9ff;
+    --surface: #f8f9ff;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #eff4ff;
+    --surface-container: #e5eeff;
+    --surface-container-high: #dce9ff;
+    --surface-container-highest: #d3e4fe;
+    
+    --on-surface: #0b1c30;
+    --on-surface-variant: #45464d;
+    --secondary: #515f74;
+    --outline: #76777d;
+    --outline-variant: #c6c6cd;
+    
+    --primary: #0f172a;
+    --primary-container: #131b2e;
+    --error: #ba1a1a;
+    --error-container: #ffdad6;
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: var(--background);
-    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #f8f9ff;
+    color: #0b1c30;
     margin: 0;
     padding: 0;
+    font-feature-settings: 'tnum' 1, 'cv02' 1, 'cv03' 1, 'cv04' 1;
+    -webkit-font-smoothing: antialiased;
   }
 
   #root {
@@ -28,46 +39,155 @@
   }
 }
 
-/* Custom UI Component Utilities */
-.btn-primary {
-  background-color: #163A63;
-  color: #FFFFFF;
+/* Material Symbols alignment helper */
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 20;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+/* Stitch Badges (Academic Governance Spec) */
+.badge-emerald {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-rose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #9f1239;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-amber {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-sky {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #075985;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-mono {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  border-radius: 0.25rem;
   font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
+}
+
+/* Stitch Buttons */
+.btn-stitch-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: 0.25rem;
+  background-color: #0f172a;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border: 1px solid #0f172a;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
-.btn-primary:hover {
-  background-color: #0F2742;
+.btn-stitch-primary:hover {
+  background-color: #1e293b;
+  border-color: #1e293b;
 }
 
-.btn-secondary {
-  background-color: #0F9D94;
-  color: #FFFFFF;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
+.btn-stitch-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: 0.25rem;
+  background-color: #ffffff;
+  color: #0f172a;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
-.btn-secondary:hover {
-  background-color: #0B7C75;
+.btn-stitch-secondary:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
 }
 
-.card-institutional {
-  background-color: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.2s ease;
+.btn-stitch-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: 0.25rem;
+  background-color: #fff1f2;
+  color: #9f1239;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid #fecdd3;
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
-.card-institutional:hover {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+.btn-stitch-danger:hover {
+  background-color: #ffe4e6;
+}
+
+/* Card Surface */
+.card-stitch {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
 }

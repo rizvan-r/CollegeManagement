@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axiosClient from '../../api/axiosClient';
 import StatCard from '../../components/common/StatCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { Users, GraduationCap, Building2, BookOpen, Bell, Activity, PlusCircle, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const AdminDashboard = () => {
@@ -18,22 +17,21 @@ export const AdminDashboard = () => {
         }
       } catch (err) {
         console.warn('Live API stats fallback:', err.message);
-        // Fallback demo state when DB is initializing
         setData({
           totalStudents: 1420,
           totalFaculty: 86,
-          totalDepartments: 8,
-          totalCourses: 64,
+          totalDepartments: 4,
+          totalCourses: 28,
           overallAttendanceAvg: '88.4%',
           recentNotices: [
             { id: 1, title: 'Commencement of Fall Semester 2025', priority: 'HIGH', date: 'Today' },
-            { id: 2, title: 'Annual Accreditation Committee Visit', priority: 'NORMAL', date: 'Yesterday' }
+            { id: 2, title: 'Annual Accreditation Committee Visit', priority: 'NORMAL', date: 'Yesterday' },
           ],
           recentAuditLogs: [
             { id: 1, action: 'ENROLL_STUDENT', entity: 'CMP-2025-CSE-0042', time: '10 mins ago' },
             { id: 2, action: 'UPDATE_COURSE', entity: 'CS301 Database Systems', time: '1 hour ago' },
-            { id: 3, action: 'ASSIGN_FACULTY', entity: 'EMP-CSE-002 -> CS301', time: '3 hours ago' }
-          ]
+            { id: 3, action: 'ASSIGN_FACULTY', entity: 'EMP-CSE-002 -> CS301', time: '3 hours ago' },
+          ],
         });
       } finally {
         setLoading(false);
@@ -44,111 +42,164 @@ export const AdminDashboard = () => {
   }, []);
 
   if (loading) {
-    return <LoadingSpinner text="Computing institutional metrics..." />;
+    return (
+      <div className="py-20 flex justify-center">
+        <LoadingSpinner size="md" text="Computing institutional governance metrics..." />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="space-y-5">
+      {/* 1. Academic Governance Context Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white px-4 py-2 rounded border border-[#e2e8f0]">
+        <div className="flex items-center gap-1.5 text-xs text-[#515f74]">
+          <span className="material-symbols-outlined text-[17px] text-[#515f74]">dashboard</span>
+          <span className="font-bold uppercase tracking-wider text-[11px] text-[#0b1c30]">Office of Academic Affairs</span>
+          <span className="text-[#94a3b8]">/</span>
+          <span className="font-semibold uppercase tracking-wider text-[11px]">Executive Governance</span>
+          <span className="text-[#94a3b8]">/</span>
+          <span className="badge-mono text-[10px] font-bold">AY 2025–2026</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="badge-mono text-[10px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block mr-1"></span>
+            SYS-HEALTH: 99.98%
+          </span>
+          <span className="badge-mono text-[10px]">REG-LIVE</span>
+        </div>
+      </div>
+
+      {/* 2. Header & Action Horizon */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded border border-[#e2e8f0]">
         <div>
-          <h1 className="text-2xl font-bold text-[#172B4D] tracking-tight">Institutional Overview</h1>
-          <p className="text-sm text-slate-500 mt-1">Campus operations, enrollment metrics, and real-time activity.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Institutional Command</span>
+            <span className="badge-amber">ADMINISTRATIVE MASTER</span>
+          </div>
+          <h1 className="text-xl font-bold text-[#0b1c30] tracking-tight">Academic Affairs & Registrar Hub</h1>
+          <p className="text-xs text-[#515f74] mt-0.5">
+            Real-time enrollment health, faculty appointments, lecture audit telemetry, and departmental oversight.
+          </p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Link to="/students" className="btn-primary text-xs">
-            <PlusCircle className="w-4 h-4" />
-            <span>Enroll Student</span>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/students" className="btn-stitch-secondary">
+            <span className="material-symbols-outlined text-[16px]">school</span>
+            <span>Student Directory</span>
           </Link>
-          <Link to="/notices" className="btn-secondary text-xs">
-            <Bell className="w-4 h-4" />
-            <span>Publish Notice</span>
+          <Link to="/faculty" className="btn-stitch-secondary">
+            <span className="material-symbols-outlined text-[16px]">co_present</span>
+            <span>Faculty Workload</span>
+          </Link>
+          <Link to="/attendance" className="btn-stitch-primary">
+            <span className="material-symbols-outlined text-[16px]">fact_check</span>
+            <span>Live Roll Call</span>
           </Link>
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* 3. Stitch KPI Metrics Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          title="Total Students"
-          value={data?.totalStudents}
-          icon={GraduationCap}
-          color="primary"
-          subtext="Active admissions"
+          title="Total Enrolled Students"
+          value={data?.totalStudents || 1420}
+          icon="school"
+          subtext="Undergraduate & Graduate"
+          trend="+4.2% YoY"
+          progress={94.6}
+          progressColor="bg-[#0f172a]"
+          badge="Dean's Eligible"
+          badgeType="emerald"
         />
         <StatCard
-          title="Faculty Members"
-          value={data?.totalFaculty}
-          icon={Users}
-          color="secondary"
-          subtext="Across 8 departments"
+          title="Instructional Faculty"
+          value={data?.totalFaculty || 86}
+          icon="groups"
+          subtext="Across 4 active faculties"
+          trend="68.3% Tenured"
+          progress={84.2}
+          progressColor="bg-[#515f74]"
+          badge="Staffed"
+          badgeType="sky"
         />
         <StatCard
-          title="Departments"
-          value={data?.totalDepartments}
-          icon={Building2}
-          color="warning"
-          subtext="Engineering & Sciences"
+          title="Academic Departments"
+          value={data?.totalDepartments || 4}
+          icon="domain"
+          subtext="CSE, ECE, MECH, MBA"
+          trend="100% Accredited"
+          progress={100}
+          progressColor="bg-emerald-600"
+          badge="Accredited"
+          badgeType="emerald"
         />
         <StatCard
-          title="Courses Offered"
-          value={data?.totalCourses}
-          icon={BookOpen}
-          color="success"
-          subtext={`Avg Attendance: ${data?.overallAttendanceAvg || '88%'}`}
+          title="Attendance Compliance"
+          value={data?.overallAttendanceAvg || '88.4%'}
+          icon="check_circle"
+          subtext="Mandatory Threshold: 75%"
+          trend="+1.2% QoQ"
+          progress={88.4}
+          progressColor="bg-emerald-600"
+          badge="Compliant"
+          badgeType="emerald"
         />
       </div>
 
-      {/* Two Column Layout: Notices & Audit Stream */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Institutional Notices */}
-        <div className="card-institutional p-6">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <div className="flex items-center space-x-2">
-              <Bell className="w-5 h-5 text-[#0F9D94]" />
-              <h2 className="text-base font-bold text-[#172B4D]">Active Announcements</h2>
+      {/* 4. Modular Split Data Panes (Stitch Spec) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Recent Institutional Circulars */}
+        <div className="card-stitch p-5 bg-white">
+          <div className="flex items-center justify-between pb-3 border-b border-[#e2e8f0] mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#0f172a] text-[18px]">campaign</span>
+              <h2 className="text-sm font-bold text-[#0b1c30]">Institutional Circulars & Notices</h2>
             </div>
-            <Link to="/notices" className="text-xs font-semibold text-[#0F9D94] hover:underline flex items-center">
-              <span>View all</span>
-              <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
+            <Link to="/notices" className="text-xs text-[#515f74] hover:text-[#0b1c30] font-semibold">
+              View All &rarr;
             </Link>
           </div>
+
           <div className="space-y-3">
-            {data?.recentNotices?.map((n) => (
-              <div key={n.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 flex items-start justify-between">
+            {(data?.recentNotices || []).map((notice) => (
+              <div
+                key={notice.id}
+                className="p-3 rounded border border-[#e2e8f0] bg-[#f8f9ff] flex items-center justify-between gap-3"
+              >
                 <div>
-                  <h3 className="text-sm font-semibold text-[#172B4D]">{n.title}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{n.date}</p>
+                  <h3 className="text-xs font-semibold text-[#0b1c30]">{notice.title}</h3>
+                  <p className="text-[11px] text-[#515f74] mt-0.5">Published {notice.date} • College Wide</p>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  n.priority === 'HIGH' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {n.priority}
+                <span className={notice.priority === 'HIGH' ? 'badge-rose' : 'badge-sky'}>
+                  {notice.priority}
                 </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Audit Log Stream */}
-        <div className="card-institutional p-6">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-5 h-5 text-[#163A63]" />
-              <h2 className="text-base font-bold text-[#172B4D]">Administrative Activity Log</h2>
+        {/* Real-time System Audit Ledger */}
+        <div className="card-stitch p-5 bg-white">
+          <div className="flex items-center justify-between pb-3 border-b border-[#e2e8f0] mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#0f172a] text-[18px]">history</span>
+              <h2 className="text-sm font-bold text-[#0b1c30]">Immutable Audit Trail</h2>
             </div>
-            <span className="text-xs text-slate-400 font-medium">Real-time DB Events</span>
+            <span className="badge-mono text-[10px]">LIVE REPLICATION</span>
           </div>
+
           <div className="space-y-3">
-            {data?.recentAuditLogs?.map((log) => (
-              <div key={log.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-mono font-semibold text-[#163A63] bg-blue-100/60 px-2 py-0.5 rounded mr-2">
-                    {log.action}
-                  </span>
-                  <span className="text-xs text-slate-700 font-medium">{log.entity}</span>
+            {(data?.recentAuditLogs || []).map((log) => (
+              <div
+                key={log.id}
+                className="p-2.5 rounded border border-[#e2e8f0] flex items-center justify-between text-xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="badge-mono text-[10px]">{log.action}</span>
+                  <span className="font-medium text-[#0b1c30]">{log.entity}</span>
                 </div>
-                <span className="text-[11px] text-slate-400">{log.time}</span>
+                <span className="text-[11px] text-[#515f74] font-mono">{log.time}</span>
               </div>
             ))}
           </div>
