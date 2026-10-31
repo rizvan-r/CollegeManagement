@@ -11,6 +11,7 @@
     "client": "npm --prefix client run dev",
     "migrate": "npm --prefix server run migrate",
     "seed": "npm --prefix server run seed",
+    "db:setup": "npm --prefix server run db:setup",
     "start": "npm --prefix server start",
     "build": "npm --prefix client run build"
   },
