@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, pool } from '../config/db.js';
+import { query, pool, withTransaction } from '../config/db.js';
 import { authenticate, authorize } from '../middleware/authMiddleware.js';
 import { hashPassword } from '../utils/passwordUtils.js';
 

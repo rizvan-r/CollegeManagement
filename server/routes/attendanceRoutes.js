@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, pool } from '../config/db.js';
+import { query, pool, withTransaction } from '../config/db.js';
 import { authenticate, authorize } from '../middleware/authMiddleware.js';
 
 const router = Router();
@@ -12,65 +12,62 @@ router.post('/sessions', authenticate, authorize('FACULTY', 'ADMIN', 'DEPARTMENT
     return res.status(400).json({ success: false, message: 'Missing required attendance session fields.' });
   }
 
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const sessionRecord = await withTransaction(async (client) => {
+      // 1. Fetch or resolve faculty ID
+      let facultyId = req.user.userId;
+      try {
+        const facRes = await client.query('SELECT id FROM faculty WHERE user_id = $1 LIMIT 1', [req.user.userId]);
+        if (facRes.rows.length > 0) {
+          facultyId = facRes.rows[0].id;
+        } else {
+          const anyFac = await client.query('SELECT id FROM faculty LIMIT 1');
+          facultyId = anyFac.rows[0]?.id;
+        }
+      } catch (err) {}
 
-    // 1. Fetch or resolve faculty ID
-    let facultyId = req.user.userId;
-    try {
-      const facRes = await client.query('SELECT id FROM faculty WHERE user_id = $1 LIMIT 1', [req.user.userId]);
-      if (facRes.rows.length > 0) {
-        facultyId = facRes.rows[0].id;
-      } else {
-        const anyFac = await client.query('SELECT id FROM faculty LIMIT 1');
-        facultyId = anyFac.rows[0]?.id;
+      // 2. Insert attendance_sessions
+      const sessionSql = `
+        INSERT INTO attendance_sessions (
+          course_assignment_id, session_date, period_number, topic, marked_by_faculty_id
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+      `;
+      const sessionRes = await client.query(sessionSql, [
+        courseAssignmentId,
+        sessionDate,
+        periodNumber,
+        topic || 'Curriculum Lecture',
+        facultyId,
+      ]);
+      const sessionId = sessionRes.rows[0].id;
+
+      // 3. Batch insert attendance records
+      for (const record of records) {
+        await client.query(
+          `INSERT INTO attendance_records (session_id, student_id, status, remarks)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (session_id, student_id) DO UPDATE SET status = EXCLUDED.status`,
+          [sessionId, record.studentId, record.status || 'PRESENT', record.remarks || null]
+        );
       }
-    } catch (err) {}
 
-    // 2. Insert attendance_sessions
-    const sessionSql = `
-      INSERT INTO attendance_sessions (
-        course_assignment_id, session_date, period_number, topic, marked_by_faculty_id
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `;
-    const sessionRes = await client.query(sessionSql, [
-      courseAssignmentId,
-      sessionDate,
-      periodNumber,
-      topic || 'Curriculum Lecture',
-      facultyId,
-    ]);
-    const sessionId = sessionRes.rows[0].id;
+      return sessionRes.rows[0];
+    });
 
-    // 3. Batch insert attendance records
-    for (const record of records) {
-      await client.query(
-        `INSERT INTO attendance_records (session_id, student_id, status, remarks)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (session_id, student_id) DO UPDATE SET status = EXCLUDED.status`,
-        [sessionId, record.studentId, record.status || 'PRESENT', record.remarks || null]
-      );
-    }
-
-    await client.query('COMMIT');
     return res.status(201).json({
       success: true,
-      data: sessionRes.rows[0],
+      data: sessionRecord,
       recordsCount: records.length,
       message: 'Attendance recorded successfully.',
     });
   } catch (error) {
-    await client.query('ROLLBACK');
     console.warn('Attendance simulated fallback record');
     return res.status(201).json({
       success: true,
       message: 'Attendance session recorded (fallback simulation).',
       recordsCount: records.length,
     });
-  } finally {
-    client.release();
   }
 });
 
