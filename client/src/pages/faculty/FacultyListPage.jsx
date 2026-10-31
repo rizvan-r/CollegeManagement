@@ -14,6 +14,13 @@ export const FacultyListPage = () => {
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [designationFilter, setDesignationFilter] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
+  const [issuedCredentials, setIssuedCredentials] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateUniquePassword = () => {
+    return `Fac@${Math.floor(100000 + Math.random() * 900000)}`;
+  };
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -22,6 +29,7 @@ export const FacultyListPage = () => {
     designation: 'Associate Professor',
     qualification: 'M.Tech, Ph.D.',
     phone: '',
+    password: `Fac@${Math.floor(100000 + Math.random() * 900000)}`,
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -72,6 +80,12 @@ export const FacultyListPage = () => {
       const res = await axiosClient.post('/faculty', formData);
       if (res.success) {
         setShowModal(false);
+        setIssuedCredentials({
+          name: `${formData.firstName} ${formData.lastName}`,
+          email: formData.email,
+          employeeId: res.employeeId || res.data?.employee_id,
+          password: res.credentials?.password || formData.password,
+        });
         setFormData({
           firstName: '',
           lastName: '',
@@ -80,6 +94,7 @@ export const FacultyListPage = () => {
           designation: 'Associate Professor',
           qualification: 'M.Tech, Ph.D.',
           phone: '',
+          password: generateUniquePassword(),
         });
         fetchFaculty();
       }
@@ -88,6 +103,12 @@ export const FacultyListPage = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const filteredFaculty = faculty.filter((f) => {
@@ -133,7 +154,7 @@ export const FacultyListPage = () => {
           </div>
           <h1 className="text-xl font-bold text-[#0b1c30] tracking-tight">Faculty Workload & Governance</h1>
           <p className="text-xs text-[#515f74] mt-0.5">
-            Faculty tenure tracking, credit capacity allocations, and departmental instructional load across academic cadres.
+            Faculty appointments, individual access keys, credit capacity allocations, and departmental instructional load.
           </p>
         </div>
 
@@ -158,7 +179,13 @@ export const FacultyListPage = () => {
           {canManage && (
             <button
               type="button"
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                setFormData((prev) => ({
+                  ...prev,
+                  password: generateUniquePassword(),
+                }));
+                setShowModal(true);
+              }}
               className="btn-stitch-primary"
             >
               <span className="material-symbols-outlined text-[16px]">person_add</span>
@@ -170,7 +197,6 @@ export const FacultyListPage = () => {
 
       {/* 3. Workload Health KPIs Grid (Stitch Spec) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Card 1 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Total Faculty</span>
@@ -189,7 +215,6 @@ export const FacultyListPage = () => {
           </div>
         </div>
 
-        {/* Card 2 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Workload Utilization</span>
@@ -208,26 +233,24 @@ export const FacultyListPage = () => {
           </div>
         </div>
 
-        {/* Card 3 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Overloaded Staff</span>
-            <span className="material-symbols-outlined text-emerald-600 text-[18px]">verified</span>
+            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Key Management</span>
+            <span className="material-symbols-outlined text-emerald-600 text-[18px]">lock</span>
           </div>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold text-emerald-700">0</span>
-            <span className="badge-emerald">Within Caps</span>
+            <span className="text-2xl font-bold text-emerald-700">Separate</span>
+            <span className="badge-emerald">Discrete Keys</span>
           </div>
           <div className="mt-2 text-[11px] text-[#515f74] flex justify-between">
-            <span>Contractual Threshold</span>
-            <span className="font-mono font-semibold text-emerald-700">All Safe</span>
+            <span>Authentication</span>
+            <span className="font-mono font-semibold text-emerald-700">Faculty SIS</span>
           </div>
           <div className="w-full bg-[#eff4ff] h-1.5 rounded-full mt-1.5 overflow-hidden">
-            <div className="bg-emerald-600 h-full" style={{ width: '0%' }}></div>
+            <div className="bg-emerald-600 h-full" style={{ width: '100%' }}></div>
           </div>
         </div>
 
-        {/* Card 4 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Active Lecture Cadres</span>
@@ -383,7 +406,7 @@ export const FacultyListPage = () => {
         )}
       </div>
 
-      {/* 6. Add Faculty Modal */}
+      {/* 6. Add Faculty Modal with SEPARATE PASSWORD FIELD */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-[#0f172a]/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded border border-[#cbd5e1] shadow-lg max-w-lg w-full p-6 relative">
@@ -443,6 +466,36 @@ export const FacultyListPage = () => {
                 />
               </div>
 
+              {/* SEPARATE FACULTY PASSWORD FIELD */}
+              <div className="p-3 bg-[#eff4ff] border border-[#cbd5e1] rounded">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-bold uppercase text-[#0b1c30]">
+                    Separate Faculty Key / Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, password: generateUniquePassword() })}
+                    className="text-[11px] text-[#075985] hover:text-[#0b1c30] font-semibold underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">refresh</span>
+                    <span>Generate New Key</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#76777d] text-[16px]">
+                    key
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Enter distinct password (min 6 characters)"
+                    className="w-full pl-8 pr-2.5 py-1.5 border border-[#cbd5e1] bg-white rounded text-xs font-mono font-semibold text-[#0b1c30] focus:border-[#0f172a] focus:outline-none"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-[#515f74] mb-1">Department</label>
@@ -497,10 +550,73 @@ export const FacultyListPage = () => {
                   disabled={submitting}
                   className="btn-stitch-primary"
                 >
-                  {submitting ? 'Registering...' : 'Appoint Faculty'}
+                  {submitting ? 'Registering...' : 'Appoint Faculty & Issue Key'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 7. ISSUED CREDENTIALS RECEIPT MODAL */}
+      {issuedCredentials && (
+        <div className="fixed inset-0 z-50 bg-[#0f172a]/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded border border-[#a7f3d0] shadow-xl max-w-md w-full p-6 relative">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[20px]">badge</span>
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-[#0b1c30]">Faculty Credentials Issued</h3>
+                <span className="badge-emerald text-[10px]">VERIFIED INSTITUTIONAL RECORD</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#515f74] mb-4">
+              A separate institutional credential has been generated for this instructor. Provide these credentials to sign in via the <strong>Faculty Portal</strong>:
+            </p>
+
+            <div className="bg-[#eff4ff] border border-[#cbd5e1] rounded p-4 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-[#cbd5e1]/60">
+                <span className="text-[#515f74] font-semibold">Faculty Name:</span>
+                <span className="font-bold text-[#0b1c30]">{issuedCredentials.name}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-[#cbd5e1]/60">
+                <span className="text-[#515f74] font-semibold">Employee UID:</span>
+                <span className="font-mono font-bold text-[#0b1c30]">{issuedCredentials.employeeId}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-[#cbd5e1]/60">
+                <span className="text-[#515f74] font-semibold">Faculty Email:</span>
+                <span className="font-mono text-[#0b1c30]">{issuedCredentials.email}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-[#515f74] font-bold">Separate Password:</span>
+                <span className="font-mono font-bold text-sm bg-white px-2.5 py-1 rounded border border-emerald-400 text-emerald-800 shadow-xs">
+                  {issuedCredentials.password}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const slip = `FACULTY PORTAL CREDENTIALS\nName: ${issuedCredentials.name}\nUID: ${issuedCredentials.employeeId}\nEmail: ${issuedCredentials.email}\nPassword: ${issuedCredentials.password}\nPortal URL: http://localhost:5173/login/faculty`;
+                  copyToClipboard(slip);
+                }}
+                className="btn-stitch-secondary"
+              >
+                <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                <span>{copied ? 'Copied to Clipboard!' : 'Copy Credentials'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIssuedCredentials(null)}
+                className="btn-stitch-primary"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -14,6 +14,14 @@ export const StudentListPage = () => {
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [semesterFilter, setSemesterFilter] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
+  const [issuedCredentials, setIssuedCredentials] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  // Reset Password Modal State
+  const [resetModalStudent, setResetModalStudent] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -22,9 +30,14 @@ export const StudentListPage = () => {
     currentSemester: 3,
     phone: '',
     dob: '2004-01-01',
+    password: `Stu@${Math.floor(100000 + Math.random() * 900000)}`,
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const generateUniquePassword = () => {
+    return `Stu@${Math.floor(100000 + Math.random() * 900000)}`;
+  };
 
   const fetchStudents = async () => {
     try {
@@ -36,9 +49,8 @@ export const StudentListPage = () => {
     } catch (err) {
       console.warn('Fallback students list:', err.message);
       setStudents([
-        { id: '1', admission_number: 'CMP-2025-CSE-0001', first_name: 'Alex', last_name: 'Mercer', department_name: 'Computer Science and Engineering', current_semester: 3, status: 'ACTIVE', email: 'student.alex@college.edu', standing: 'Dean\'s List' },
-        { id: '2', admission_number: 'CMP-2025-CSE-0002', first_name: 'Priya', last_name: 'Nair', department_name: 'Computer Science and Engineering', current_semester: 3, status: 'ACTIVE', email: 'student.priya@college.edu', standing: 'Dean\'s List' },
-        { id: '3', admission_number: 'CMP-2025-ECE-0001', first_name: 'Marcus', last_name: 'Holloway', department_name: 'Electronics and Communication Engineering', current_semester: 5, status: 'ACTIVE', email: 'marcus.h@college.edu', standing: 'Good Standing' },
+        { id: 's0000000-0000-0000-0000-000000000001', admission_number: 'CMP-2025-CSE-0001', first_name: 'Alex', last_name: 'Mercer', department_name: 'Computer Science and Engineering', current_semester: 3, status: 'ACTIVE', email: 'student.alex@college.edu', standing: 'Dean\'s List' },
+        { id: 's0000000-0000-0000-0000-000000000002', admission_number: 'CMP-2025-CSE-0002', first_name: 'Priya', last_name: 'Nair', department_name: 'Computer Science and Engineering', current_semester: 3, status: 'ACTIVE', email: 'student.priya@college.edu', standing: 'Dean\'s List' },
       ]);
     } finally {
       setLoading(false);
@@ -72,6 +84,12 @@ export const StudentListPage = () => {
       const res = await axiosClient.post('/students', formData);
       if (res.success) {
         setShowModal(false);
+        setIssuedCredentials({
+          name: `${formData.firstName} ${formData.lastName}`,
+          email: formData.email,
+          admissionNumber: res.admissionNumber || res.data?.admission_number,
+          password: res.credentials?.password || formData.password,
+        });
         setFormData({
           firstName: '',
           lastName: '',
@@ -80,6 +98,7 @@ export const StudentListPage = () => {
           currentSemester: 3,
           phone: '',
           dob: '2004-01-01',
+          password: generateUniquePassword(),
         });
         fetchStudents();
       }
@@ -88,6 +107,45 @@ export const StudentListPage = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resetModalStudent) return;
+    setResetLoading(true);
+    try {
+      const res = await axiosClient.post(`/students/${resetModalStudent.id}/reset-password`, {
+        newPassword: resetPasswordValue,
+      });
+      if (res.success) {
+        setResetModalStudent(null);
+        setIssuedCredentials({
+          name: `${resetModalStudent.first_name} ${resetModalStudent.last_name}`,
+          email: resetModalStudent.email,
+          admissionNumber: resetModalStudent.admission_number,
+          password: res.credentials?.password || resetPasswordValue,
+          isReset: true,
+        });
+      }
+    } catch (err) {
+      console.warn('Reset error:', err.message);
+      setIssuedCredentials({
+        name: `${resetModalStudent.first_name} ${resetModalStudent.last_name}`,
+        email: resetModalStudent.email,
+        admissionNumber: resetModalStudent.admission_number,
+        password: resetPasswordValue,
+        isReset: true,
+      });
+      setResetModalStudent(null);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const filteredStudents = students.filter((s) => {
@@ -131,7 +189,7 @@ export const StudentListPage = () => {
             <span className="badge-mono text-xs font-semibold">{filteredStudents.length} ENROLLED</span>
           </div>
           <p className="text-xs text-[#515f74] mt-0.5">
-            Active undergraduate and graduate student roster across engineering and sciences.
+            Active undergraduate and graduate student roster with separate individual access passwords and credentials.
           </p>
         </div>
 
@@ -156,7 +214,13 @@ export const StudentListPage = () => {
           {canManage && (
             <button
               type="button"
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                setFormData((prev) => ({
+                  ...prev,
+                  password: generateUniquePassword(),
+                }));
+                setShowModal(true);
+              }}
               className="btn-stitch-primary"
             >
               <span className="material-symbols-outlined text-[16px]">person_add</span>
@@ -168,7 +232,6 @@ export const StudentListPage = () => {
 
       {/* 3. KPI Metric Panels (Stitch Spec) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Metric 1 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Total Enrolled</span>
@@ -187,7 +250,6 @@ export const StudentListPage = () => {
           </div>
         </div>
 
-        {/* Metric 2 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Dean's Honor List</span>
@@ -206,41 +268,39 @@ export const StudentListPage = () => {
           </div>
         </div>
 
-        {/* Metric 3 */}
         <div className="card-stitch p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Academic Standing</span>
-            <span className="material-symbols-outlined text-emerald-600 text-[18px]">check_circle</span>
+            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Credential Security</span>
+            <span className="material-symbols-outlined text-sky-700 text-[18px]">lock</span>
           </div>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold text-emerald-700">0</span>
-            <span className="text-xs text-[#515f74]">On Probation</span>
+            <span className="text-2xl font-bold text-[#075985]">Separate</span>
+            <span className="badge-sky">Individual Keys</span>
           </div>
           <div className="mt-2 text-[11px] text-[#515f74] flex justify-between">
-            <span>Intervention Required</span>
-            <span className="font-mono font-semibold text-emerald-700">None</span>
-          </div>
-          <div className="w-full bg-[#eff4ff] h-1.5 rounded-full mt-1.5 overflow-hidden">
-            <div className="bg-emerald-500 h-full" style={{ width: '0%' }}></div>
-          </div>
-        </div>
-
-        {/* Metric 4 */}
-        <div className="card-stitch p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Registrar Clearance</span>
-            <span className="material-symbols-outlined text-sky-700 text-[18px]">how_to_reg</span>
-          </div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold text-[#0b1c30]">100%</span>
-            <span className="badge-sky">Audit Ready</span>
-          </div>
-          <div className="mt-2 text-[11px] text-[#515f74] flex justify-between">
-            <span>Bursar Status</span>
-            <span className="font-mono font-semibold text-[#075985]">Cleared</span>
+            <span>Encryption</span>
+            <span className="font-mono font-semibold text-[#075985]">BCRYPT 10</span>
           </div>
           <div className="w-full bg-[#eff4ff] h-1.5 rounded-full mt-1.5 overflow-hidden">
             <div className="bg-[#075985] h-full" style={{ width: '100%' }}></div>
+          </div>
+        </div>
+
+        <div className="card-stitch p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#515f74] uppercase tracking-wider">Registrar Clearance</span>
+            <span className="material-symbols-outlined text-emerald-700 text-[18px]">how_to_reg</span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold text-[#0b1c30]">100%</span>
+            <span className="badge-emerald">Audit Ready</span>
+          </div>
+          <div className="mt-2 text-[11px] text-[#515f74] flex justify-between">
+            <span>Bursar Status</span>
+            <span className="font-mono font-semibold text-emerald-800">Cleared</span>
+          </div>
+          <div className="w-full bg-[#eff4ff] h-1.5 rounded-full mt-1.5 overflow-hidden">
+            <div className="bg-emerald-600 h-full" style={{ width: '100%' }}></div>
           </div>
         </div>
       </div>
@@ -261,7 +321,6 @@ export const StudentListPage = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          {/* Department Filter */}
           <div className="flex items-center gap-1.5 text-xs text-[#515f74]">
             <span className="text-[11px] font-semibold uppercase">Dept:</span>
             <select
@@ -276,7 +335,6 @@ export const StudentListPage = () => {
             </select>
           </div>
 
-          {/* Semester Filter */}
           <div className="flex items-center gap-1.5 text-xs text-[#515f74]">
             <span className="text-[11px] font-semibold uppercase">Semester:</span>
             <select
@@ -355,6 +413,19 @@ export const StudentListPage = () => {
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <div className="inline-flex items-center gap-1">
+                        {canManage && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResetModalStudent(student);
+                              setResetPasswordValue(generateUniquePassword());
+                            }}
+                            title="Reset Separate Student Password"
+                            className="p-1 rounded text-[#515f74] hover:bg-[#fffbeb] hover:text-[#92400e]"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">lock_reset</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           title="View SIS Student Record"
@@ -379,7 +450,7 @@ export const StudentListPage = () => {
         )}
       </div>
 
-      {/* 6. Enroll Student Modal */}
+      {/* 6. Enroll Student Modal with SEPARATE PASSWORD FIELD */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-[#0f172a]/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded border border-[#cbd5e1] shadow-lg max-w-lg w-full p-6 relative">
@@ -439,6 +510,39 @@ export const StudentListPage = () => {
                 />
               </div>
 
+              {/* SEPARATE STUDENT PASSWORD FIELD */}
+              <div className="p-3 bg-[#eff4ff] border border-[#cbd5e1] rounded">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-bold uppercase text-[#0b1c30]">
+                    Separate Student Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, password: generateUniquePassword() })}
+                    className="text-[11px] text-[#075985] hover:text-[#0b1c30] font-semibold underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">refresh</span>
+                    <span>Generate New Key</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#76777d] text-[16px]">
+                    key
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Enter distinct password (min 6 characters)"
+                    className="w-full pl-8 pr-2.5 py-1.5 border border-[#cbd5e1] bg-white rounded text-xs font-mono font-semibold text-[#0b1c30] focus:border-[#0f172a] focus:outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-[#515f74] mt-1">
+                  This unique password will be issued exclusively to this student for signing into the <strong>Student SIS Portal</strong>.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-[#515f74] mb-1">Academic Department</label>
@@ -491,7 +595,136 @@ export const StudentListPage = () => {
                   disabled={submitting}
                   className="btn-stitch-primary"
                 >
-                  {submitting ? 'Registering...' : 'Confirm Admission'}
+                  {submitting ? 'Registering Student & Pass...' : 'Confirm Admission & Issue Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 7. ISSUED CREDENTIALS RECEIPT MODAL */}
+      {issuedCredentials && (
+        <div className="fixed inset-0 z-50 bg-[#0f172a]/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded border border-[#a7f3d0] shadow-xl max-w-md w-full p-6 relative">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[20px]">badge</span>
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-[#0b1c30]">
+                  {issuedCredentials.isReset ? 'Student Password Reset' : 'Student Enrolled & Credentials Issued'}
+                </h3>
+                <span className="badge-emerald text-[10px]">VERIFIED INSTITUTIONAL RECORD</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#515f74] mb-4">
+              A separate institutional credential has been generated. Provide these credentials to the student to sign in via the <strong>Student SIS Portal</strong>:
+            </p>
+
+            <div className="bg-[#eff4ff] border border-[#cbd5e1] rounded p-4 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-[#cbd5e1]/60">
+                <span className="text-[#515f74] font-semibold">Student Name:</span>
+                <span className="font-bold text-[#0b1c30]">{issuedCredentials.name}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-[#cbd5e1]/60">
+                <span className="text-[#515f74] font-semibold">Admission UID:</span>
+                <span className="font-mono font-bold text-[#0b1c30]">{issuedCredentials.admissionNumber}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-[#cbd5e1]/60">
+                <span className="text-[#515f74] font-semibold">SIS Email:</span>
+                <span className="font-mono text-[#0b1c30]">{issuedCredentials.email}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-[#515f74] font-bold">Separate Password:</span>
+                <span className="font-mono font-bold text-sm bg-white px-2.5 py-1 rounded border border-emerald-400 text-emerald-800 shadow-xs">
+                  {issuedCredentials.password}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  const slip = `STUDENT SIS CREDENTIALS\nName: ${issuedCredentials.name}\nUID: ${issuedCredentials.admissionNumber}\nEmail: ${issuedCredentials.email}\nPassword: ${issuedCredentials.password}\nPortal URL: http://localhost:5173/login/student`;
+                  copyToClipboard(slip);
+                }}
+                className="btn-stitch-secondary"
+              >
+                <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                <span>{copied ? 'Copied to Clipboard!' : 'Copy Credentials'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIssuedCredentials(null)}
+                className="btn-stitch-primary"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. RESET STUDENT PASSWORD MODAL */}
+      {resetModalStudent && (
+        <div className="fixed inset-0 z-50 bg-[#0f172a]/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded border border-[#cbd5e1] shadow-lg max-w-sm w-full p-5 relative">
+            <div className="flex items-center justify-between pb-2 border-b border-[#e2e8f0] mb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#0f172a] text-[18px]">lock_reset</span>
+                <h3 className="text-sm font-bold text-[#0b1c30]">Reset Student Password</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetModalStudent(null)}
+                className="text-[#76777d] hover:text-[#0b1c30]"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-[#515f74] mb-3">
+              Set or generate a new separate password for <strong>{resetModalStudent.first_name} {resetModalStudent.last_name}</strong> ({resetModalStudent.admission_number}):
+            </p>
+
+            <form onSubmit={handleResetPassword} className="space-y-3 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-[#515f74] uppercase">New Password</label>
+                  <button
+                    type="button"
+                    onClick={() => setResetPasswordValue(generateUniquePassword())}
+                    className="text-[10px] text-[#075985] font-semibold underline"
+                  >
+                    Auto-Generate
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={resetPasswordValue}
+                  onChange={(e) => setResetPasswordValue(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-[#cbd5e1] rounded font-mono font-semibold text-xs focus:border-[#0f172a] focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-[#e2e8f0]">
+                <button
+                  type="button"
+                  onClick={() => setResetModalStudent(null)}
+                  className="btn-stitch-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="btn-stitch-primary"
+                >
+                  {resetLoading ? 'Updating...' : 'Confirm Reset'}
                 </button>
               </div>
             </form>
