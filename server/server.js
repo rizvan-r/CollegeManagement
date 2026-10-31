@@ -32,8 +32,9 @@ app.get('/api/v1/health', async (req, res) => {
   });
 });
 
-// Mount Central API Router
+// Mount Central API Router (supporting both /api/v1 prefix and root paths)
 app.use('/api/v1', apiRouter);
+app.use(apiRouter);
 
 // API Root Information
 app.get('/api/v1', (req, res) => {
