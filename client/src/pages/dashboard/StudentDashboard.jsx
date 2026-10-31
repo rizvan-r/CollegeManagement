@@ -1,46 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axiosClient from '../../api/axiosClient';
 import StatCard from '../../components/common/StatCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { Link } from 'react-router-dom';
+import StudentCheckInWidget from '../../components/attendance/StudentCheckInWidget';
 
 export const StudentDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchStudentData = async () => {
-      try {
-        const res = await axiosClient.get('/dashboard/student');
-        if (res.success) {
-          setData(res.data);
-        }
-      } catch (err) {
-        console.warn('Fallback student metrics:', err.message);
-        setData({
-          admissionNumber: 'CMP-2025-CSE-0001',
-          department: 'Computer Science and Engineering',
-          currentSemester: 'Semester 3',
-          overallAttendance: 89.5,
-          enrolledCoursesCount: 4,
-          subjectAttendance: [
-            { code: 'CS301', title: 'Database Management Systems', present: 22, onDuty: 2, total: 26, percent: 92.3 },
-            { code: 'CS302', title: 'Operating Systems Concepts', present: 20, onDuty: 1, total: 24, percent: 87.5 },
-            { code: 'CS303', title: 'Theory of Computation', present: 18, onDuty: 0, total: 20, percent: 90.0 },
-            { code: 'MA301', title: 'Discrete Mathematics', present: 19, onDuty: 2, total: 25, percent: 84.0 },
-          ],
-          recentNotices: [
-            { id: 1, title: 'CSE Department Annual Hackathon 2025', date: 'Oct 30', priority: 'NORMAL' },
-            { id: 2, title: 'Mid-Semester Examination Schedule', date: 'Oct 28', priority: 'HIGH' },
-          ],
-        });
-      } finally {
-        setLoading(false);
+  const fetchStudentData = useCallback(async () => {
+    try {
+      const res = await axiosClient.get('/dashboard/student');
+      if (res.success) {
+        setData(res.data);
       }
-    };
-
-    fetchStudentData();
+    } catch (err) {
+      console.warn('Fallback student metrics:', err.message);
+      setData({
+        admissionNumber: 'CMP-2025-CSE-0001',
+        department: 'Computer Science and Engineering',
+        currentSemester: 'Semester 3',
+        overallAttendance: 89.5,
+        enrolledCoursesCount: 4,
+        subjectAttendance: [
+          { code: 'CS301', title: 'Database Management Systems', present: 22, onDuty: 2, total: 26, percent: 92.3 },
+          { code: 'CS302', title: 'Operating Systems Concepts', present: 20, onDuty: 1, total: 24, percent: 87.5 },
+          { code: 'CS303', title: 'Theory of Computation', present: 18, onDuty: 0, total: 20, percent: 90.0 },
+          { code: 'MA301', title: 'Discrete Mathematics', present: 19, onDuty: 2, total: 25, percent: 84.0 },
+        ],
+        recentNotices: [
+          { id: 1, title: 'CSE Department Annual Hackathon 2025', date: 'Oct 30', priority: 'NORMAL' },
+          { id: 2, title: 'Mid-Semester Examination Schedule', date: 'Oct 28', priority: 'HIGH' },
+        ],
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStudentData();
+  }, [fetchStudentData]);
 
   if (loading) {
     return (
@@ -96,6 +97,9 @@ export const StudentDashboard = () => {
           </Link>
         </div>
       </div>
+
+      {/* Live Lecture Session PIN Check-In Widget */}
+      <StudentCheckInWidget onCheckInSuccess={fetchStudentData} />
 
       {/* Attendance Deficiency Alert if < 75% */}
       {isLowAttendance && (

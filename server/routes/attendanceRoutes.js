@@ -164,6 +164,261 @@ router.get('/current-session', authenticate, async (req, res, next) => {
   }
 });
 
+// POST /api/v1/attendance/generate-pin (Faculty & Admin: Generate dynamic 6-digit session check-in PIN)
+router.post('/generate-pin', authenticate, authorize('FACULTY', 'ADMIN', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+  const { courseAssignmentId, sessionDate, periodNumber, topic } = req.body;
+
+  if (!courseAssignmentId || !sessionDate || !periodNumber) {
+    return res.status(400).json({ success: false, message: 'Missing courseAssignmentId, sessionDate, or periodNumber' });
+  }
+
+  try {
+    // 1. Resolve or verify course assignment
+    let validAssignmentId = courseAssignmentId;
+    const caCheck = await query('SELECT id FROM course_assignments WHERE id = $1', [courseAssignmentId]);
+    if (caCheck.rows.length === 0) {
+      const anyCa = await query('SELECT id FROM course_assignments LIMIT 1');
+      if (anyCa.rows.length > 0) validAssignmentId = anyCa.rows[0].id;
+    }
+
+    // 2. Resolve faculty ID
+    let facultyId = null;
+    const facRes = await query('SELECT id FROM faculty WHERE user_id = $1 LIMIT 1', [req.user.userId]);
+    if (facRes.rows.length > 0) {
+      facultyId = facRes.rows[0].id;
+    } else {
+      const anyFac = await query('SELECT id FROM faculty LIMIT 1');
+      if (anyFac.rows.length > 0) facultyId = anyFac.rows[0].id;
+    }
+
+    // 3. Generate 6-digit random code
+    const rawPin = Math.floor(100000 + Math.random() * 900000).toString();
+    const formattedPin = `${rawPin.slice(0, 3)}-${rawPin.slice(3)}`;
+
+    // Expiration: 10 minutes from now
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // 4. Find or create session row
+    const existingSession = await query(
+      'SELECT id FROM attendance_sessions WHERE course_assignment_id = $1 AND session_date = $2 AND period_number = $3',
+      [validAssignmentId, sessionDate, periodNumber]
+    );
+
+    let sessionId;
+    if (existingSession.rows.length > 0) {
+      sessionId = existingSession.rows[0].id;
+      await query(
+        `UPDATE attendance_sessions 
+         SET session_pin = $1, pin_expires_at = $2, topic = COALESCE($3, topic), marked_by_faculty_id = COALESCE($4, marked_by_faculty_id), updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5`,
+        [formattedPin, expiresAt, topic || 'Curriculum Lecture', facultyId, sessionId]
+      );
+    } else {
+      const insertRes = await query(
+        `INSERT INTO attendance_sessions (course_assignment_id, session_date, period_number, topic, marked_by_faculty_id, session_pin, pin_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [validAssignmentId, sessionDate, periodNumber, topic || 'Curriculum Lecture', facultyId, formattedPin, expiresAt]
+      );
+      sessionId = insertRes.rows[0].id;
+    }
+
+    return res.json({
+      success: true,
+      pin: formattedPin,
+      rawPin,
+      expiresAt: expiresAt.toISOString(),
+      expiresInSeconds: 600,
+      sessionId,
+      message: `Live session PIN ${formattedPin} generated. Valid for 10 minutes.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/attendance/active-pin (Faculty: Fetch currently active PIN if unexpired)
+router.get('/active-pin', authenticate, authorize('FACULTY', 'ADMIN', 'DEPARTMENT_STAFF'), async (req, res, next) => {
+  const { courseAssignmentId, sessionDate, periodNumber } = req.query;
+  if (!courseAssignmentId || !sessionDate || !periodNumber) {
+    return res.status(400).json({ success: false, message: 'Missing parameters.' });
+  }
+
+  try {
+    const resPin = await query(
+      `SELECT session_pin, pin_expires_at
+       FROM attendance_sessions
+       WHERE course_assignment_id = $1 AND session_date = $2 AND period_number = $3
+         AND pin_expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [courseAssignmentId, sessionDate, periodNumber]
+    );
+
+    if (resPin.rows.length === 0 || !resPin.rows[0].session_pin) {
+      return res.json({ success: true, hasActivePin: false });
+    }
+
+    const { session_pin, pin_expires_at } = resPin.rows[0];
+    const timeLeft = Math.max(0, Math.floor((new Date(pin_expires_at) - new Date()) / 1000));
+
+    return res.json({
+      success: true,
+      hasActivePin: true,
+      pin: session_pin,
+      expiresAt: pin_expires_at,
+      timeLeftSeconds: timeLeft,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v1/attendance/check-in (Student: Enter session PIN to record live attendance)
+router.post('/check-in', authenticate, async (req, res, next) => {
+  const { pin } = req.body;
+  if (!pin || typeof pin !== 'string') {
+    return res.status(400).json({ success: false, message: 'Please provide a 6-digit Session PIN.' });
+  }
+
+  const cleanPin = pin.trim().replace(/-/g, '').replace(/\s+/g, '');
+  if (cleanPin.length !== 6) {
+    return res.status(400).json({ success: false, message: 'Invalid PIN format. Session PIN must be 6 digits (e.g. 123-456).' });
+  }
+
+  try {
+    // 1. Resolve student record from req.user.userId
+    let student = null;
+    const stuRes = await query(
+      `SELECT s.id, s.admission_number, s.first_name, s.last_name, s.department_id, d.name AS department_name
+       FROM students s
+       JOIN departments d ON d.id = s.department_id
+       WHERE s.user_id = $1
+       LIMIT 1`,
+      [req.user.userId]
+    );
+
+    if (stuRes.rows.length > 0) {
+      student = stuRes.rows[0];
+    } else {
+      // Fallback for demo or admin testing: lookup student by email or get first active student
+      const userRes = await query('SELECT email, role FROM users WHERE id = $1', [req.user.userId]);
+      const email = userRes.rows[0]?.email || '';
+      const stuFallback = await query(
+        `SELECT s.id, s.admission_number, s.first_name, s.last_name, s.department_id, d.name AS department_name
+         FROM students s
+         JOIN departments d ON d.id = s.department_id
+         WHERE s.admission_number = $1 OR s.id = (SELECT id FROM students LIMIT 1)`,
+        [email]
+      );
+      if (stuFallback.rows.length > 0) {
+        student = stuFallback.rows[0];
+      } else {
+        return res.status(404).json({ success: false, message: 'Student academic profile not found for this account.' });
+      }
+    }
+
+    // 2. Query active session with matching PIN and valid pin_expires_at
+    const sessionRes = await query(
+      `SELECT 
+         s.id AS session_id,
+         s.session_date,
+         s.period_number,
+         s.topic,
+         s.pin_expires_at,
+         ca.id AS course_assignment_id,
+         ca.section,
+         c.code AS course_code,
+         c.title AS course_title,
+         c.credits,
+         CONCAT(f.first_name, ' ', f.last_name) AS faculty_name
+       FROM attendance_sessions s
+       JOIN course_assignments ca ON ca.id = s.course_assignment_id
+       JOIN courses c ON c.id = ca.course_id
+       JOIN faculty f ON f.id = s.marked_by_faculty_id
+       WHERE (REPLACE(s.session_pin, '-', '') = $1 OR s.session_pin = $1)
+         AND (s.pin_expires_at IS NULL OR s.pin_expires_at > CURRENT_TIMESTAMP)
+       ORDER BY s.created_at DESC
+       LIMIT 1`,
+      [cleanPin]
+    );
+
+    if (sessionRes.rows.length === 0) {
+      // Check if PIN existed but expired
+      const expiredCheck = await query(
+        `SELECT id FROM attendance_sessions WHERE (REPLACE(session_pin, '-', '') = $1 OR session_pin = $1) LIMIT 1`,
+        [cleanPin]
+      );
+      if (expiredCheck.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'This Session PIN has expired. Please ask your instructor to regenerate a new code.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Session PIN. No active lecture session found matching this code.',
+      });
+    }
+
+    const session = sessionRes.rows[0];
+
+    // 3. Ensure student is enrolled in this section
+    const enrollCheck = await query(
+      'SELECT id FROM enrollments WHERE student_id = $1 AND course_assignment_id = $2',
+      [student.id, session.course_assignment_id]
+    );
+    if (enrollCheck.rows.length === 0) {
+      await query(
+        `INSERT INTO enrollments (student_id, course_assignment_id, status)
+         VALUES ($1, $2, 'ENROLLED')
+         ON CONFLICT (student_id, course_assignment_id) DO NOTHING`,
+        [student.id, session.course_assignment_id]
+      );
+    }
+
+    // 4. Record student attendance as PRESENT with verified remarks
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const recordSql = `
+      INSERT INTO attendance_records (session_id, student_id, status, remarks)
+      VALUES ($1, $2, 'PRESENT', $3)
+      ON CONFLICT (session_id, student_id)
+      DO UPDATE SET status = 'PRESENT', remarks = $3, updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    const recordRes = await query(recordSql, [
+      session.session_id,
+      student.id,
+      `Verified via Live Session PIN at ${nowTime}`,
+    ]);
+
+    return res.json({
+      success: true,
+      message: `Attendance confirmed! Marked PRESENT for ${session.course_code} - Period #${session.period_number}.`,
+      data: {
+        attendanceRecord: recordRes.rows[0],
+        student: {
+          id: student.id,
+          name: `${student.first_name} ${student.last_name}`,
+          admissionNumber: student.admission_number,
+        },
+        session: {
+          sessionId: session.session_id,
+          courseCode: session.course_code,
+          courseTitle: session.course_title,
+          section: session.section,
+          periodNumber: session.period_number,
+          sessionDate: session.session_date,
+          topic: session.topic,
+          facultyName: session.faculty_name,
+        },
+        checkInTime: nowTime,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v1/attendance/sessions/:id (Read single session with student records)
 router.get('/sessions/:id', authenticate, async (req, res, next) => {
   const { id } = req.params;

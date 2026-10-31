@@ -175,6 +175,8 @@ CREATE TABLE IF NOT EXISTS attendance_sessions (
     period_number INTEGER NOT NULL,
     topic VARCHAR(255),
     marked_by_faculty_id UUID NOT NULL REFERENCES faculty(id) ON DELETE RESTRICT,
+    session_pin VARCHAR(10),
+    pin_expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_session_period UNIQUE (course_assignment_id, session_date, period_number),

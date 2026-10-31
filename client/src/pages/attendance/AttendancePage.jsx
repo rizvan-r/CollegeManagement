@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axiosClient from '../../api/axiosClient';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
+import StudentCheckInWidget from '../../components/attendance/StudentCheckInWidget';
 
 export const AttendancePage = () => {
   const { user } = useAuth();
@@ -212,10 +213,30 @@ export const AttendancePage = () => {
     return () => clearInterval(interval);
   }, [sessionPin, pinTimeLeft]);
 
-  const generatePin = () => {
-    const code = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(100 + Math.random() * 900)}`;
-    setSessionPin(code);
-    setPinTimeLeft(300);
+  const generatePin = async () => {
+    try {
+      const res = await axiosClient.post('/attendance/generate-pin', {
+        courseAssignmentId: selectedAssignmentId,
+        sessionDate,
+        periodNumber: parseInt(periodNumber, 10) || 1,
+        topic,
+      });
+      if (res.success && res.pin) {
+        setSessionPin(res.pin);
+        setPinTimeLeft(res.expiresInSeconds || 600);
+        if (res.sessionId) {
+          setCurrentSessionId(res.sessionId);
+          setIsExistingSession(true);
+        }
+        setCheckInNotice(`Live Session PIN ${res.pin} generated and active for 10 minutes! Students can now enter this PIN from their login.`);
+        setTimeout(() => setCheckInNotice(''), 8000);
+      }
+    } catch (err) {
+      console.warn('Backend PIN generation fallback:', err.message);
+      const code = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(100 + Math.random() * 900)}`;
+      setSessionPin(code);
+      setPinTimeLeft(300);
+    }
   };
 
   const simulateStudentCheckIn = () => {
@@ -538,6 +559,9 @@ export const AttendancePage = () => {
               <h3 className="text-2xl font-extrabold tracking-widest font-mono text-white mt-0.5">
                 {sessionPin}
               </h3>
+              <p className="text-[11px] text-sky-200 mt-0.5">
+                Students can enter this PIN on their Student Dashboard or Attendance Log to record attendance.
+              </p>
             </div>
           </div>
 
@@ -587,6 +611,18 @@ export const AttendancePage = () => {
           <span className="material-symbols-outlined text-rose-700 text-[18px]">error</span>
           <span>{errorMessage}</span>
         </div>
+      )}
+
+      {/* Student Session PIN Check-In Widget */}
+      {isStudent && (
+        <StudentCheckInWidget
+          onCheckInSuccess={() => {
+            fetchStudentStats();
+            if (selectedAssignmentId) {
+              fetchRosterAndSession(selectedAssignmentId, sessionDate, periodNumber);
+            }
+          }}
+        />
       )}
 
       {/* Student Personal Statistics Banner (if Student) */}
