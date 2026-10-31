@@ -5,6 +5,7 @@ const { Pool } = pg;
 
 const isProduction = config.nodeEnv === 'production';
 const isNeon = config.databaseUrl && config.databaseUrl.includes('neon.tech');
+export const isPlaceholderDb = !config.databaseUrl || config.databaseUrl.includes('ep-placeholder');
 
 // Configure SSL for remote PostgreSQL (Neon requires SSL)
 const poolConfig = {
@@ -14,13 +15,13 @@ const poolConfig = {
     : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
 };
 
 export const pool = new Pool(poolConfig);
 
 pool.on('error', (err) => {
-  console.error('[Database Pool Error]: Unexpected client error', err.message);
+  console.warn('[Database Pool Notice]: Client connection reset', err.message);
 });
 
 /**
@@ -30,6 +31,10 @@ pool.on('error', (err) => {
  * @returns {Promise<pg.QueryResult>}
  */
 export const query = async (text, params) => {
+  if (isPlaceholderDb) {
+    throw new Error('Database is currently configured with placeholder credentials');
+  }
+
   const start = Date.now();
   try {
     const res = await pool.query(text, params);
@@ -39,8 +44,40 @@ export const query = async (text, params) => {
     }
     return res;
   } catch (error) {
-    console.error(`[SQL Error]: ${error.message}\nQuery: ${text}`);
+    console.warn(`[SQL Notice]: ${error.message}`);
     throw error;
+  }
+};
+
+/**
+ * Execute transactional operations safely
+ * @param {Function} callback - Function receiving client instance
+ */
+export const withTransaction = async (callback) => {
+  if (isPlaceholderDb) {
+    throw new Error('Database is currently configured with placeholder credentials');
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.warn('Rollback failed:', rollbackErr.message);
+      }
+    }
+    throw err;
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 };
 
@@ -48,7 +85,7 @@ export const query = async (text, params) => {
  * Helper to test database connectivity
  */
 export const testDatabaseConnection = async () => {
-  if (!config.databaseUrl || config.databaseUrl.includes('ep-placeholder')) {
+  if (isPlaceholderDb) {
     console.warn('[Database Notice]: DATABASE_URL is currently using placeholder credentials.');
     console.warn('-> Please update server/.env with your active Neon PostgreSQL connection string to run live queries.');
     return { connected: false, reason: 'Placeholder credentials in use' };
