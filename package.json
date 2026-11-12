@@ -6,9 +6,12 @@
   "scripts": {
     "server:install": "npm --prefix server install",
     "client:install": "npm --prefix client install",
-    "install:all": "npm run server:install && npm run client:install",
+    "mobile:install": "npm --prefix mobile install --legacy-peer-deps",
+    "install:all": "npm run server:install && npm run client:install && npm run mobile:install",
     "server": "npm --prefix server run dev",
     "client": "npm --prefix client run dev",
+    "mobile": "npm --prefix mobile start",
+    "mobile:android": "npm --prefix mobile run android",
     "migrate": "npm --prefix server run migrate",
     "seed": "npm --prefix server run seed",
     "db:setup": "npm --prefix server run db:setup",
@@ -27,5 +30,8 @@
   "license": "MIT",
   "devDependencies": {
     "playwright": "^1.64.1"
+  },
+  "dependencies": {
+    "eas": "^0.1.0"
   }
 }

@@ -10,13 +10,16 @@ router.get('/', authenticate, async (req, res, next) => {
     try {
       const sql = `
         SELECT 
-          d.id, d.code, d.name, d.building, d.established_year,
+          d.id, d.code, d.name, d.building, d.established_year, d.hod_faculty_id,
+          CONCAT(f_hod.first_name, ' ', f_hod.last_name) AS hod_name,
+          f_hod.employee_id AS hod_employee_id,
           COUNT(DISTINCT s.id)::int AS student_count,
           COUNT(DISTINCT f.id)::int AS faculty_count
         FROM departments d
+        LEFT JOIN faculty f_hod ON f_hod.id = d.hod_faculty_id
         LEFT JOIN students s ON s.department_id = d.id AND s.status = 'ACTIVE'
         LEFT JOIN faculty f ON f.department_id = d.id AND f.status = 'ACTIVE'
-        GROUP BY d.id
+        GROUP BY d.id, f_hod.first_name, f_hod.last_name, f_hod.employee_id
         ORDER BY d.name ASC
       `;
       const result = await query(sql);
@@ -86,7 +89,7 @@ router.post('/', authenticate, authorize('ADMIN'), async (req, res, next) => {
 // PUT /api/v1/departments/:id (Update - Admin only)
 router.put('/:id', authenticate, authorize('ADMIN'), async (req, res, next) => {
   const { id } = req.params;
-  const { name, building, establishedYear } = req.body;
+  const { name, building, establishedYear, hodFacultyId } = req.body;
 
   try {
     const sql = `
@@ -94,11 +97,12 @@ router.put('/:id', authenticate, authorize('ADMIN'), async (req, res, next) => {
       SET name = COALESCE($1, name),
           building = COALESCE($2, building),
           established_year = COALESCE($3, established_year),
+          hod_faculty_id = CASE WHEN $4::text IS NOT NULL AND $4::text != '' THEN $4::uuid ELSE hod_faculty_id END,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4
+      WHERE id = $5
       RETURNING *
     `;
-    const result = await query(sql, [name, building, establishedYear, id]);
+    const result = await query(sql, [name, building, establishedYear, hodFacultyId || null, id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Department not found.' });
     }

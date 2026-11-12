@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, pool, withTransaction } from '../config/db.js';
 import { authenticate, authorize } from '../middleware/authMiddleware.js';
+import { createNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -83,13 +84,37 @@ router.get('/roster/:courseAssignmentId', authenticate, async (req, res, next) =
 
 // GET /api/v1/attendance/sessions (List recorded attendance sessions)
 router.get('/sessions', authenticate, async (req, res, next) => {
+  const { courseAssignmentId, facultyId } = req.query;
   try {
+    let whereClauses = [];
+    let params = [];
+
+    if (courseAssignmentId) {
+      params.push(courseAssignmentId);
+      whereClauses.push(`ca.id = $${params.length}`);
+    }
+
+    if (facultyId) {
+      params.push(facultyId);
+      whereClauses.push(`(ca.faculty_id = $${params.length} OR s.marked_by_faculty_id = $${params.length})`);
+    } else if (req.user?.role === 'FACULTY') {
+      const facRes = await query('SELECT id FROM faculty WHERE user_id = $1 LIMIT 1', [req.user.userId]);
+      if (facRes.rows.length > 0) {
+        params.push(facRes.rows[0].id);
+        whereClauses.push(`(ca.faculty_id = $${params.length} OR s.marked_by_faculty_id = $${params.length})`);
+      }
+    }
+
+    const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
     const sql = `
       SELECT 
         s.id,
         s.session_date,
         s.period_number,
         s.topic,
+        ca.id AS course_assignment_id,
+        c.id AS course_id,
         c.code AS course_code,
         c.title AS course_title,
         ca.section,
@@ -104,10 +129,11 @@ router.get('/sessions', authenticate, async (req, res, next) => {
       JOIN courses c ON c.id = ca.course_id
       JOIN faculty f ON f.id = s.marked_by_faculty_id
       LEFT JOIN attendance_records r ON r.session_id = s.id
-      GROUP BY s.id, s.session_date, s.period_number, s.topic, c.code, c.title, ca.section, f.first_name, f.last_name
+      ${whereStr}
+      GROUP BY s.id, s.session_date, s.period_number, s.topic, ca.id, c.id, c.code, c.title, ca.section, f.first_name, f.last_name
       ORDER BY s.session_date DESC, s.created_at DESC
     `;
-    const result = await query(sql);
+    const result = await query(sql, params);
     return res.json({ success: true, count: result.rows.length, data: result.rows });
   } catch (error) {
     next(error);
@@ -575,6 +601,34 @@ router.post('/sessions', authenticate, authorize('FACULTY', 'ADMIN', 'DEPARTMENT
       };
     });
 
+    // Notify absent students asynchronously
+    const absentStudentIds = records
+      .filter((r) => r.status === 'ABSENT')
+      .map((r) => r.studentId || r.student_id)
+      .filter(Boolean);
+
+    if (absentStudentIds.length > 0) {
+      query('SELECT user_id FROM students WHERE id = ANY($1::uuid[])', [absentStudentIds])
+        .then((uRes) => {
+          const userIds = uRes.rows.map((r) => r.user_id).filter(Boolean);
+          if (userIds.length > 0) {
+            createNotification({
+              userIds,
+              title: 'Absence Alert',
+              body: `You were marked ABSENT for session on ${sessionDate} (Period ${periodNumber}).`,
+              category: 'ATTENDANCE',
+              data: {
+                sessionId: sessionRecord.session?.id,
+                sessionDate,
+                periodNumber,
+              },
+              channelId: 'attendance',
+            }).catch((err) => console.warn('Attendance push notification error:', err.message));
+          }
+        })
+        .catch((err) => console.warn('Student lookup for attendance notification failed:', err.message));
+    }
+
     return res.status(201).json({
       success: true,
       data: sessionRecord.session,
@@ -675,6 +729,116 @@ router.delete('/sessions/:id', authenticate, authorize('FACULTY', 'ADMIN'), asyn
   }
 });
 
+// Helper: resolve student ID from req.user
+async function resolveStudentId(req) {
+  if (req.user?.role === 'STUDENT') {
+    const res = await query('SELECT id FROM students WHERE user_id = $1 LIMIT 1', [req.user.userId]);
+    return res.rows[0]?.id || null;
+  }
+  return null;
+}
+
+// GET /api/v1/attendance/my (Current authenticated student attendance statistics & history)
+router.get('/my', authenticate, async (req, res, next) => {
+  try {
+    const studentId = await resolveStudentId(req);
+    if (!studentId) {
+      return res.status(404).json({ success: false, message: 'Student record not found for active user.' });
+    }
+
+    // 1. Overall summary
+    const summarySql = `
+      SELECT 
+        COUNT(ar.id)::int AS total_sessions,
+        COUNT(CASE WHEN ar.status = 'PRESENT' THEN 1 END)::int AS present_count,
+        COUNT(CASE WHEN ar.status = 'ON_DUTY' THEN 1 END)::int AS on_duty_count,
+        COUNT(CASE WHEN ar.status = 'LATE' THEN 1 END)::int AS late_count,
+        COUNT(CASE WHEN ar.status = 'ABSENT' THEN 1 END)::int AS absent_count,
+        COALESCE(
+          ROUND(
+            (COUNT(CASE WHEN ar.status IN ('PRESENT', 'ON_DUTY') THEN 1 END)::numeric / 
+             NULLIF(COUNT(ar.id), 0)::numeric) * 100, 
+            1
+          )::float,
+          100.0
+        ) AS attendance_percentage
+      FROM attendance_records ar
+      WHERE ar.student_id = $1
+    `;
+    const summaryRes = await query(summarySql, [studentId]);
+    const summary = summaryRes.rows[0] || {
+      total_sessions: 0,
+      present_count: 0,
+      on_duty_count: 0,
+      late_count: 0,
+      absent_count: 0,
+      attendance_percentage: 100.0,
+    };
+
+    // 2. Subject-wise attendance
+    const subjectSql = `
+      SELECT 
+        c.id AS course_id,
+        c.code,
+        c.title,
+        COUNT(ar.id)::int AS total,
+        COUNT(CASE WHEN ar.status = 'PRESENT' THEN 1 END)::int AS present,
+        COUNT(CASE WHEN ar.status = 'ON_DUTY' THEN 1 END)::int AS "onDuty",
+        COUNT(CASE WHEN ar.status = 'ABSENT' THEN 1 END)::int AS absent,
+        COALESCE(
+          ROUND(
+            (COUNT(CASE WHEN ar.status IN ('PRESENT', 'ON_DUTY') THEN 1 END)::numeric / 
+             NULLIF(COUNT(ar.id), 0)::numeric) * 100, 
+            1
+          )::float,
+          100.0
+        ) AS percent
+      FROM enrollments e
+      JOIN course_assignments ca ON ca.id = e.course_assignment_id
+      JOIN courses c ON c.id = ca.course_id
+      LEFT JOIN attendance_sessions att_s ON att_s.course_assignment_id = ca.id
+      LEFT JOIN attendance_records ar ON ar.session_id = att_s.id AND ar.student_id = e.student_id
+      WHERE e.student_id = $1
+      GROUP BY c.id, c.code, c.title
+      ORDER BY c.code ASC
+    `;
+    const subjectRes = await query(subjectSql, [studentId]);
+
+    // 3. Attendance history
+    const historySql = `
+      SELECT 
+        ar.id,
+        ar.status,
+        ar.created_at AS check_in_time,
+        ar.remarks,
+        ar.created_at,
+        att_s.id AS session_id,
+        att_s.session_date,
+        att_s.period_number,
+        c.id AS course_id,
+        c.code AS course_code,
+        c.title AS course_title
+      FROM attendance_records ar
+      JOIN attendance_sessions att_s ON att_s.id = ar.session_id
+      JOIN course_assignments ca ON ca.id = att_s.course_assignment_id
+      JOIN courses c ON c.id = ca.course_id
+      WHERE ar.student_id = $1
+      ORDER BY att_s.session_date DESC, ar.created_at DESC
+      LIMIT 100
+    `;
+    const historyRes = await query(historySql, [studentId]);
+
+    return res.json({
+      success: true,
+      summary,
+      subjectAttendance: subjectRes.rows,
+      history: historyRes.rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v1/attendance/student/:studentId (Student attendance statistics)
 router.get('/student/:studentId', authenticate, async (req, res, next) => {
   const { studentId } = req.params;
@@ -705,12 +869,66 @@ router.get('/student/:studentId', authenticate, async (req, res, next) => {
       attendance_percentage: 100.0,
     };
 
+    // Also fetch subjects and history for comprehensive client support
+    const subjectSql = `
+      SELECT 
+        c.id AS course_id,
+        c.code,
+        c.title,
+        COUNT(ar.id)::int AS total,
+        COUNT(CASE WHEN ar.status = 'PRESENT' THEN 1 END)::int AS present,
+        COUNT(CASE WHEN ar.status = 'ON_DUTY' THEN 1 END)::int AS "onDuty",
+        COUNT(CASE WHEN ar.status = 'ABSENT' THEN 1 END)::int AS absent,
+        COALESCE(
+          ROUND(
+            (COUNT(CASE WHEN ar.status IN ('PRESENT', 'ON_DUTY') THEN 1 END)::numeric / 
+             NULLIF(COUNT(ar.id), 0)::numeric) * 100, 
+            1
+          )::float,
+          100.0
+        ) AS percent
+      FROM enrollments e
+      JOIN course_assignments ca ON ca.id = e.course_assignment_id
+      JOIN courses c ON c.id = ca.course_id
+      LEFT JOIN attendance_sessions att_s ON att_s.course_assignment_id = ca.id
+      LEFT JOIN attendance_records ar ON ar.session_id = att_s.id AND ar.student_id = e.student_id
+      WHERE e.student_id = $1
+      GROUP BY c.id, c.code, c.title
+      ORDER BY c.code ASC
+    `;
+    const subjectRes = await query(subjectSql, [studentId]);
+
+    const historySql = `
+      SELECT 
+        ar.id,
+        ar.status,
+        ar.created_at AS check_in_time,
+        ar.remarks,
+        ar.created_at,
+        att_s.id AS session_id,
+        att_s.session_date,
+        att_s.period_number,
+        c.id AS course_id,
+        c.code AS course_code,
+        c.title AS course_title
+      FROM attendance_records ar
+      JOIN attendance_sessions att_s ON att_s.id = ar.session_id
+      JOIN course_assignments ca ON ca.id = att_s.course_assignment_id
+      JOIN courses c ON c.id = ca.course_id
+      WHERE ar.student_id = $1
+      ORDER BY att_s.session_date DESC, ar.created_at DESC
+      LIMIT 100
+    `;
+    const historyRes = await query(historySql, [studentId]);
+
     return res.json({
       success: true,
       summary: {
         ...summary,
         attendance_percentage: summary.attendance_percentage ?? 100.0,
       },
+      subjectAttendance: subjectRes.rows,
+      history: historyRes.rows,
     });
   } catch (error) {
     next(error);

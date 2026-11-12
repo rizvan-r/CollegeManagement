@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../config/db.js';
 import { authenticate, authorize } from '../middleware/authMiddleware.js';
+import { broadcastNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -8,18 +9,36 @@ const router = Router();
 router.get('/', authenticate, async (req, res, next) => {
   try {
     try {
+      let deptFilter = '';
+      const params = [];
+
+      if (req.user?.role === 'STUDENT') {
+        // Resolve student's department
+        const stuDept = await query(
+          'SELECT department_id FROM students WHERE user_id = $1 OR LOWER((SELECT email FROM users WHERE id = $1)) = LOWER($2)',
+          [req.user.userId, req.user.email]
+        );
+        const deptId = stuDept.rows[0]?.department_id;
+        if (deptId) {
+          params.push(deptId);
+          deptFilter = ` AND (n.audience IN ('COLLEGE_WIDE', 'STUDENT_ONLY') OR (n.audience = 'DEPARTMENT_ONLY' AND n.target_department_id = $${params.length}))`;
+        } else {
+          deptFilter = ` AND n.audience IN ('COLLEGE_WIDE', 'STUDENT_ONLY')`;
+        }
+      }
+
       const sql = `
         SELECT 
-          n.id, n.title, n.content, n.priority, n.audience, n.publish_date,
+          n.id, n.title, n.content, n.priority, n.audience, n.publish_date, n.expiry_date,
           u.email AS author_name,
           d.name AS department_name
         FROM notices n
         JOIN users u ON u.id = n.author_id
         LEFT JOIN departments d ON d.id = n.target_department_id
-        WHERE n.expiry_date IS NULL OR n.expiry_date >= CURRENT_DATE
+        WHERE (n.expiry_date IS NULL OR n.expiry_date >= CURRENT_DATE)${deptFilter}
         ORDER BY n.publish_date DESC, n.created_at DESC
       `;
-      const result = await query(sql);
+      const result = await query(sql, params);
       if (result.rows.length > 0) {
         return res.json({ success: true, count: result.rows.length, data: result.rows });
       }
@@ -77,6 +96,20 @@ router.post('/', authenticate, authorize('ADMIN', 'DEPARTMENT_STAFF'), async (re
         targetDepartmentId || null,
         req.user.userId,
       ]);
+
+      // Trigger real-time push notification broadcast
+      broadcastNotification({
+        title: `Notice: ${title}`,
+        body: content.slice(0, 120),
+        audience: audience || 'COLLEGE_WIDE',
+        targetDepartmentId: targetDepartmentId || null,
+        category: 'ANNOUNCEMENTS',
+        data: {
+          type: 'NOTICE',
+          referenceId: result.rows[0].id,
+        },
+      }).catch((err) => console.warn('[Notice Broadcast Warning]:', err.message));
+
       return res.status(201).json({ success: true, data: result.rows[0] });
     } catch (dbErr) {
       console.warn('Notice simulated creation in fallback');

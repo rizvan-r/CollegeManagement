@@ -112,6 +112,50 @@ router.get('/available-courses', authenticate, async (req, res, next) => {
   }
 });
 
+// GET /api/v1/enrollments/my (Get enrolled courses for currently authenticated student)
+router.get('/my', authenticate, async (req, res, next) => {
+  try {
+    const studentId = await resolveStudentId(req);
+    if (!studentId) {
+      return res.status(404).json({ success: false, message: 'Student profile not found for active user.' });
+    }
+
+    const sql = `
+      SELECT 
+        e.id AS enrollment_id,
+        e.enrolled_at,
+        e.status,
+        c.id AS course_id,
+        c.code AS course_code,
+        c.title AS course_title,
+        c.credits,
+        c.semester,
+        ca.id AS course_assignment_id,
+        ca.section,
+        CONCAT(f.first_name, ' ', f.last_name) AS faculty_name,
+        d.name AS department_name
+      FROM enrollments e
+      JOIN course_assignments ca ON ca.id = e.course_assignment_id
+      JOIN courses c ON c.id = ca.course_id
+      LEFT JOIN faculty f ON f.id = ca.faculty_id
+      JOIN departments d ON d.id = c.department_id
+      WHERE e.student_id = $1
+      ORDER BY c.code ASC
+    `;
+    const result = await query(sql, [studentId]);
+    const totalCredits = result.rows.reduce((sum, row) => sum + (Number(row.credits) || 0), 0);
+
+    return res.json({
+      success: true,
+      count: result.rows.length,
+      totalCredits,
+      data: result.rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v1/enrollments/student/:studentId (Get enrolled courses for a given student)
 router.get('/student/:studentId', authenticate, async (req, res, next) => {
   const { studentId } = req.params;

@@ -184,6 +184,29 @@ router.post('/:id/reset-password', authenticate, authorize('ADMIN', 'FACULTY', '
   }
 });
 
+// GET /api/v1/students/profile (Authenticated student's profile)
+router.get('/profile', authenticate, async (req, res, next) => {
+  try {
+    const sql = `
+      SELECT 
+        s.*, u.email, d.name AS department_name, d.code AS department_code,
+        ay.name AS academic_year_name
+      FROM students s
+      JOIN users u ON u.id = s.user_id
+      JOIN departments d ON d.id = s.department_id
+      LEFT JOIN academic_years ay ON ay.id = s.academic_year_id
+      WHERE s.user_id = $1 OR LOWER(u.email) = LOWER($2)
+    `;
+    const result = await query(sql, [req.user.userId, req.user.email]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student profile not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v1/students/:id (Read single)
 router.get('/:id', authenticate, async (req, res, next) => {
   const { id } = req.params;

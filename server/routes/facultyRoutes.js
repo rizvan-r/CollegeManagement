@@ -178,6 +178,151 @@ router.post('/:id/reset-password', authenticate, authorize('ADMIN'), async (req,
   }
 });
 
+// GET /api/v1/faculty/profile (Read authenticated faculty's own profile)
+router.get('/profile', authenticate, async (req, res, next) => {
+  try {
+    const sql = `
+      SELECT 
+        f.id, f.employee_id, f.first_name, f.last_name, f.designation, f.qualification,
+        f.phone, f.status, u.email,
+        d.id AS department_id, d.name AS department_name, d.code AS department_code, d.building
+      FROM faculty f
+      JOIN users u ON u.id = f.user_id
+      JOIN departments d ON d.id = f.department_id
+      WHERE f.user_id = $1 OR LOWER(u.email) = LOWER($2)
+      LIMIT 1
+    `;
+    const result = await query(sql, [req.user.userId, req.user.email || '']);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Faculty profile not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/faculty/me (Alias for /profile)
+router.get('/me', authenticate, async (req, res, next) => {
+  try {
+    const sql = `
+      SELECT 
+        f.id, f.employee_id, f.first_name, f.last_name, f.designation, f.qualification,
+        f.phone, f.status, u.email,
+        d.id AS department_id, d.name AS department_name, d.code AS department_code, d.building
+      FROM faculty f
+      JOIN users u ON u.id = f.user_id
+      JOIN departments d ON d.id = f.department_id
+      WHERE f.user_id = $1 OR LOWER(u.email) = LOWER($2)
+      LIMIT 1
+    `;
+    const result = await query(sql, [req.user.userId, req.user.email || '']);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Faculty profile not found.' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/faculty/courses (Assigned courses for authenticated faculty)
+router.get('/courses', authenticate, async (req, res, next) => {
+  try {
+    const facRes = await query(
+      `SELECT f.id FROM faculty f JOIN users u ON u.id = f.user_id WHERE f.user_id = $1 OR LOWER(u.email) = LOWER($2)`,
+      [req.user.userId, req.user.email || '']
+    );
+
+    if (facRes.rows.length === 0) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+
+    const facultyId = facRes.rows[0].id;
+
+    const sql = `
+      SELECT 
+        ca.id AS course_assignment_id,
+        ca.id AS id,
+        ca.section,
+        c.id AS course_id,
+        c.code AS course_code,
+        c.code,
+        c.title AS course_title,
+        c.title,
+        c.credits,
+        c.semester,
+        d.name AS department_name,
+        d.code AS department_code,
+        COUNT(DISTINCT e.id)::int AS enrolled_count,
+        COUNT(DISTINCT e.id)::int AS enrolled_students,
+        COALESCE((
+          SELECT COUNT(DISTINCT s.id)::int
+          FROM attendance_sessions s
+          WHERE s.course_assignment_id = ca.id
+        ), 0) AS total_sessions_conducted
+      FROM course_assignments ca
+      JOIN courses c ON c.id = ca.course_id
+      JOIN departments d ON d.id = c.department_id
+      LEFT JOIN enrollments e ON e.course_assignment_id = ca.id
+      WHERE ca.faculty_id = $1
+      GROUP BY ca.id, ca.section, c.id, c.code, c.title, c.credits, c.semester, d.name, d.code
+      ORDER BY c.code ASC, ca.section ASC
+    `;
+    const result = await query(sql, [facultyId]);
+    return res.json({ success: true, count: result.rows.length, data: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v1/faculty/courses/:courseAssignmentId/students (Student roster with attendance stats)
+router.get('/courses/:courseAssignmentId/students', authenticate, async (req, res, next) => {
+  const { courseAssignmentId } = req.params;
+
+  try {
+    const sql = `
+      SELECT 
+        s.id AS student_id,
+        s.id,
+        s.admission_number,
+        CONCAT(s.first_name, ' ', s.last_name) AS name,
+        s.first_name,
+        s.last_name,
+        s.current_semester,
+        s.phone,
+        d.name AS department_name,
+        u.email,
+        e.status AS enrollment_status,
+        COUNT(DISTINCT att_s.id)::int AS total_course_sessions,
+        COUNT(DISTINCT ar.session_id)::int AS total_sessions_recorded,
+        COUNT(DISTINCT CASE WHEN ar.status IN ('PRESENT', 'ON_DUTY') THEN ar.session_id END)::int AS attended_sessions,
+        COALESCE(
+          ROUND(
+            (COUNT(DISTINCT CASE WHEN ar.status IN ('PRESENT', 'ON_DUTY') THEN ar.session_id END)::numeric / 
+             NULLIF(COUNT(DISTINCT att_s.id), 0)::numeric) * 100, 
+            1
+          )::float,
+          100.0
+        ) AS attendance_percentage
+      FROM enrollments e
+      JOIN students s ON s.id = e.student_id
+      JOIN users u ON u.id = s.user_id
+      JOIN departments d ON d.id = s.department_id
+      JOIN course_assignments ca ON ca.id = e.course_assignment_id
+      LEFT JOIN attendance_sessions att_s ON att_s.course_assignment_id = ca.id
+      LEFT JOIN attendance_records ar ON ar.session_id = att_s.id AND ar.student_id = s.id
+      WHERE ca.id = $1 OR ca.course_id = $1
+      GROUP BY s.id, s.admission_number, s.first_name, s.last_name, s.current_semester, s.phone, d.name, u.email, e.status
+      ORDER BY s.admission_number ASC
+    `;
+    const result = await query(sql, [courseAssignmentId]);
+    return res.json({ success: true, count: result.rows.length, data: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v1/faculty/:id (Read single)
 router.get('/:id', authenticate, async (req, res, next) => {
   const { id } = req.params;
