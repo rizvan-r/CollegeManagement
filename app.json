@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "a3639e95-d2c1-4615-87e9-555b71599a12"
+      }
+    },
+    "android": {
+      "package": "com.rizvanr.collegemanagementportal"
+    }
+  }
+}
