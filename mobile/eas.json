@@ -21,7 +21,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://college-management-api.onrender.com/api/v1",
+        "EXPO_PUBLIC_API_URL": "https://collegemanagement-dd16.onrender.com/api/v1",
         "EXPO_PUBLIC_APP_NAME": "College Management Portal (QA)"
       }
     },
@@ -31,7 +31,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://college-management-api.onrender.com/api/v1",
+        "EXPO_PUBLIC_API_URL": "https://collegemanagement-dd16.onrender.com/api/v1",
         "EXPO_PUBLIC_APP_NAME": "College Management Portal"
       }
     }

@@ -18,6 +18,7 @@
     "android": {
       "package": "com.rizvanr.collegemanagementportal",
       "versionCode": 1,
+      "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#1E3A8A",
